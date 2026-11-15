@@ -48,6 +48,7 @@ class Settings:
     concurrency: int = 2
     ffmpeg_path: str | None = None
     ffprobe_path: str | None = None
+    office_path: str | None = None
     keep_history: bool = True
     play_sound: bool = True
     last_format: str = "mp4"
@@ -62,7 +63,7 @@ class Settings:
         data = asdict(self)
         data["theme"] = self.theme if self.theme in THEMES else "system"
         data["concurrency"] = max(1, min(8, int(self.concurrency or 2)))
-        for key in ("output_dir", "ffmpeg_path", "ffprobe_path"):
+        for key in ("output_dir", "ffmpeg_path", "ffprobe_path", "office_path"):
             value = data.get(key)
             data[key] = str(value) if value else None
         data["last_page"] = max(0, int(self.last_page or 0))

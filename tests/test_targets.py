@@ -21,7 +21,50 @@ def test_kind_for_common_extensions():
     assert primary_kind("a.pdf") is MediaKind.PDF
     assert primary_kind("a.epub") is MediaKind.EPUB
     assert primary_kind("a.cbz") is MediaKind.CBZ
+    assert primary_kind("a.txt") is MediaKind.TEXT
+    assert primary_kind("a.md") is MediaKind.TEXT
+    assert primary_kind("a.html") is MediaKind.MARKUP
+    assert primary_kind("a.docx") is MediaKind.OFFICE
+    assert primary_kind("a.xlsx") is MediaKind.SHEET
+    assert primary_kind("a.csv") is MediaKind.DATA
+    assert primary_kind("a.srt") is MediaKind.SUBTITLE
+    assert primary_kind("a.ttf") is MediaKind.FONT
     assert primary_kind("a.xyz") is MediaKind.UNKNOWN
+
+
+def test_document_targets_are_precise_about_source():
+    docx_targets = {spec.token for spec in available_targets([Path("a.docx")])}
+    assert "docx-md" in docx_targets
+    assert "docx-pdf" in docx_targets
+    assert "md-html" not in docx_targets
+    assert "xlsx-pdf" not in docx_targets
+
+    markdown_targets = {spec.token for spec in available_targets([Path("a.md")])}
+    assert "md-html" in markdown_targets
+    assert "md-pdf" in markdown_targets
+    assert "docx-md" not in markdown_targets
+
+    sheet_targets = {spec.token for spec in available_targets([Path("a.xlsx")])}
+    assert "data-json" in sheet_targets
+    assert "xlsx-pdf" in sheet_targets
+    assert "docx-pdf" not in sheet_targets
+
+
+def test_archive_targets_accept_any_supported_file():
+    tokens = {spec.token for spec in available_targets([Path("a.txt"), Path("a.png")])}
+    assert "zip" in tokens
+    assert "tar-gz" in tokens
+
+
+def test_subtitle_and_font_targets():
+    assert "sub-vtt" in {spec.token for spec in available_targets([Path("a.srt")])}
+    assert "font-woff2" in {spec.token for spec in available_targets([Path("a.ttf")])}
+
+
+def test_text_can_become_epub():
+    tokens = {spec.token for spec in available_targets([Path("a.txt")])}
+    assert "epub" in tokens
+    assert "txt-pdf" in tokens
 
 
 def test_gif_is_both_image_and_video_source():

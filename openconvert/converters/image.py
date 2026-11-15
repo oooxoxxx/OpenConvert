@@ -10,6 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ..core.errors import ConversionError
+from ..core.imaging import heic_available
 from ..core.paths import resolve_output
 from .base import ConvertContext, Converter
 
@@ -18,17 +19,20 @@ PIL_FORMATS: dict[str, str] = {
     "png": "PNG",
     "jpg": "JPEG",
     "webp": "WEBP",
+    "avif": "AVIF",
+    "heic": "HEIF",
     "bmp": "BMP",
     "tiff": "TIFF",
     "ico": "ICO",
     "image-gif": "GIF",
+    "apng": "PNG",
 }
 
 #: 不支援透明度的格式
 FLATTEN_FORMATS = frozenset({"jpg", "bmp"})
 
 #: 可保留動畫的格式
-ANIMATED_FORMATS = frozenset({"image-gif", "webp"})
+ANIMATED_FORMATS = frozenset({"image-gif", "webp", "apng"})
 
 ICO_SIZES = ((16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256))
 
@@ -77,15 +81,25 @@ def _save(
     elif token == "ico":
         image = image.convert("RGBA")
         params["sizes"] = ICO_SIZES
-    elif image.mode == "P":
-        image = image.convert("RGBA" if token in ("png", "webp") else "RGB")
+    elif image.mode == "P" and not animated:
+        keep_alpha = token in ("png", "webp", "avif", "heic", "apng")
+        image = image.convert("RGBA" if keep_alpha else "RGB")
+    elif token in ("avif", "heic") and not animated and image.mode not in ("RGB", "RGBA", "L"):
+        image = image.convert("RGBA")
 
     if token == "jpg":
         params.update(quality=quality, optimize=True, progressive=True)
     elif token == "webp":
         params.update(quality=quality, method=6)
+    elif token == "avif":
+        params.update(quality=quality, speed=6)
+    elif token == "heic":
+        params.update(quality=quality)
     elif token == "png":
         params.update(optimize=True, compress_level=6)
+    elif token == "apng":
+        if animated:
+            params.update(save_all=True, loop=0, default_image=False)
     elif token == "tiff":
         params.update(compression="tiff_lzw")
     elif token == "image-gif" and animated:
@@ -121,6 +135,9 @@ class ImageConverter(Converter):
 
         if token not in PIL_FORMATS:
             raise ConversionError(f"不支援的圖片格式：{token}")
+
+        if token == "heic" and not heic_available():
+            raise ConversionError("轉成 HEIC 需要 pillow-heif 套件，請執行 pip install pillow-heif 後再試。")
 
         source = ctx.source
         dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)

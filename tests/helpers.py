@@ -45,7 +45,6 @@ def run_conversion(
     for output in outputs:
         assert output.exists(), f"輸出不存在：{output}"
         if output.is_file():
-            assert output.suffix.lower() == f".{spec.extension}", (
-                f"{spec.token} 產生了非預期的副檔名：{output.name}"
-            )
+            expected = f".{spec.extension.lower()}"
+            assert output.name.lower().endswith(expected), f"{spec.token} 產生了非預期的副檔名：{output.name}"
     return job, outputs

@@ -17,7 +17,7 @@ from .core.errors import ConversionCancelled, OpenConvertError
 from .core.ffmpeg import FFmpegTools
 from .core.history import HistoryEntry, append_entry, trim
 from .core.job import Job, JobStatus
-from .core.kinds import kinds_for
+from .core.office import discover as discover_office
 from .core.settings import Settings
 
 #: 進度訊號的最小間隔（秒），避免 UI 被大量訊號淹沒
@@ -59,6 +59,7 @@ class _ConversionTask(QRunnable):
             overwrite=bool(self.settings.overwrite),
             tools=self.tools,
             progress=on_progress,
+            office=discover_office(self.settings.office_path),
         )
         contexts.append(ctx)
 
@@ -91,10 +92,7 @@ class _ConversionTask(QRunnable):
             self.signals.finished.emit(job.id)
 
     def _is_supported(self) -> bool:
-        allowed = self.job.target.kinds
-        if not allowed:
-            return True
-        return all(set(kinds_for(source)) & allowed for source in self.job.sources)
+        return all(self.job.target.accepts(source) for source in self.job.sources)
 
     def _write_history(self, job: Job) -> None:
         if not self.settings.keep_history:

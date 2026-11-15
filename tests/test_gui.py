@@ -70,7 +70,7 @@ def test_convert_page_lists_available_targets(qtbot, tools, png_file: Path, noti
 
 
 def test_convert_page_ignores_unsupported_files(qtbot, tools, tmp_path: Path, notify):
-    text = tmp_path / "note.txt"
+    text = tmp_path / "note.xyz"
     text.write_text("hello", encoding="utf-8")
 
     settings = Settings()

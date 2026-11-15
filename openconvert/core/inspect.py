@@ -12,6 +12,7 @@ from .errors import ConversionError
 from .ffmpeg import FFmpegTools, MediaInfo, StreamInfo, probe
 from .kinds import MediaKind, primary_kind
 from .paths import human_size
+from .textio import decode_bytes
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,12 @@ def describe(path: str | Path, tools: FFmpegTools) -> FileSummary:
         _describe_pdf(target, summary)
     elif kind in (MediaKind.EPUB, MediaKind.CBZ):
         _describe_archive(target, summary)
+    elif kind is MediaKind.FONT:
+        _describe_font(target, summary)
+    elif kind in (MediaKind.OFFICE, MediaKind.SHEET):
+        _describe_office(target, summary)
+    elif kind in (MediaKind.TEXT, MediaKind.MARKUP, MediaKind.DATA, MediaKind.SUBTITLE):
+        _describe_text(target, summary)
     else:
         summary.warnings.append("這個檔案類型沒有可顯示的額外資訊。")
 
@@ -157,3 +164,64 @@ def _describe_archive(target: Path, summary: FileSummary) -> None:
             summary.rows.append(InfoRow("圖片頁數", str(image_count)))
     except (zipfile.BadZipFile, OSError) as exc:
         summary.warnings.append(f"無法讀取壓縮檔資訊：{exc}")
+
+
+def _describe_text(target: Path, summary: FileSummary) -> None:
+    """文字、網頁、資料與字幕檔：顯示行數、字元數與編碼。"""
+    try:
+        data = target.read_bytes()[:2_000_000]
+    except OSError as exc:
+        summary.warnings.append(f"無法讀取檔案資訊：{exc}")
+        return
+
+    text, encoding = decode_bytes(data)
+    lines = text.splitlines()
+    summary.rows.append(InfoRow("行數", str(len(lines))))
+    summary.rows.append(InfoRow("字元數", str(len(text))))
+    summary.rows.append(InfoRow("文字編碼", encoding))
+
+    preview = [line.strip() for line in lines if line.strip()][:3]
+    if preview:
+        joined = " / ".join(preview)
+        summary.rows.append(InfoRow("預覽", joined[:120] + ("…" if len(joined) > 120 else "")))
+
+
+def _describe_font(target: Path, summary: FileSummary) -> None:
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:  # pragma: no cover - 依賴缺失
+        summary.warnings.append("缺少 fontTools，無法讀取字型資訊。")
+        return
+
+    try:
+        font = TTFont(str(target), lazy=True)
+        try:
+            labels = {"woff": "WOFF", "woff2": "WOFF2"}
+            summary.rows.append(InfoRow("容器", labels.get(font.flavor, "sfnt（未壓縮）")))
+            name_table = font.get("name", None)
+            if name_table is not None:
+                family = name_table.getDebugName(1)
+                style = name_table.getDebugName(2)
+                if family:
+                    summary.rows.append(InfoRow("字型家族", family))
+                if style:
+                    summary.rows.append(InfoRow("樣式", style))
+            if "head" in font:
+                summary.rows.append(InfoRow("單位數", str(font["head"].unitsPerEm)))
+            summary.rows.append(InfoRow("字符數", str(len(font.getGlyphOrder()))))
+        finally:
+            font.close()
+    except Exception as exc:  # fontTools 的例外種類很多
+        summary.warnings.append(f"無法讀取字型資訊：{exc}")
+
+
+def _describe_office(target: Path, summary: FileSummary) -> None:
+    """Office 檔案：顯示檔案格式與（若為壓縮容器）內部項目數。"""
+    summary.rows.append(InfoRow("格式", target.suffix.lstrip(".").upper()))
+    if target.suffix.lower() in (".docx", ".xlsx", ".xlsm", ".pptx", ".odt", ".ods", ".odp"):
+        try:
+            with zipfile.ZipFile(target) as archive:
+                summary.rows.append(InfoRow("內部項目數", str(len(archive.namelist()))))
+        except (zipfile.BadZipFile, OSError) as exc:
+            summary.warnings.append(f"無法讀取檔案結構：{exc}")
+    summary.warnings.append("轉成 PDF 等格式需要 LibreOffice。")

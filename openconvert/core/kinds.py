@@ -17,18 +17,73 @@ class MediaKind(str, Enum):
     PDF = "pdf"
     EPUB = "epub"
     CBZ = "cbz"
+    TEXT = "text"
+    MARKUP = "markup"
+    OFFICE = "office"
+    SHEET = "sheet"
+    DATA = "data"
+    SUBTITLE = "subtitle"
+    FONT = "font"
     UNKNOWN = "unknown"
 
 
-VIDEO_EXTENSIONS = frozenset({"mp4", "mkv", "webm", "mov", "avi", "m4v", "flv", "wmv", "ts", "mpg", "mpeg"})
-AUDIO_EXTENSIONS = frozenset({"mp3", "m4a", "aac", "wav", "flac", "ogg", "opus", "wma", "aiff", "alac"})
-IMAGE_EXTENSIONS = frozenset(
-    {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff", "gif", "ico", "avif", "heic"}
+VIDEO_EXTENSIONS = frozenset(
+    {
+        "mp4",
+        "mkv",
+        "webm",
+        "mov",
+        "avi",
+        "m4v",
+        "flv",
+        "wmv",
+        "ts",
+        "mts",
+        "m2ts",
+        "mpg",
+        "mpeg",
+        "ogv",
+        "3gp",
+        "3g2",
+        "vob",
+    }
 )
-BOOK_IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff", "gif"})
+AUDIO_EXTENSIONS = frozenset(
+    {
+        "mp3",
+        "m4a",
+        "m4b",
+        "aac",
+        "wav",
+        "flac",
+        "ogg",
+        "opus",
+        "wma",
+        "aiff",
+        "aif",
+        "alac",
+        "ac3",
+        "caf",
+        "amr",
+    }
+)
+IMAGE_EXTENSIONS = frozenset(
+    {"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff", "gif", "ico", "avif", "heic", "heif"}
+)
+BOOK_IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff", "gif", "avif"})
+TEXT_EXTENSIONS = frozenset({"txt", "md", "markdown"})
+MARKUP_EXTENSIONS = frozenset({"html", "htm"})
+OFFICE_EXTENSIONS = frozenset({"docx", "doc", "odt", "rtf", "pptx", "ppt", "odp"})
+SHEET_EXTENSIONS = frozenset({"xlsx", "xlsm", "xls", "ods"})
+DATA_EXTENSIONS = frozenset({"csv", "tsv", "json", "yaml", "yml", "toml"})
+SUBTITLE_EXTENSIONS = frozenset({"srt", "vtt", "ass", "ssa"})
+FONT_EXTENSIONS = frozenset({"ttf", "otf", "woff", "woff2"})
 
 #: 這些副檔名同時是「圖片」也是「影片」來源。
 AMBIGUOUS_EXTENSIONS = frozenset({"gif"})
+
+#: 所有已知類型（不含 UNKNOWN），供「可接受任何檔案」的目標使用。
+ALL_KINDS: frozenset[MediaKind] = frozenset(kind for kind in MediaKind if kind is not MediaKind.UNKNOWN)
 
 KIND_LABELS: dict[MediaKind, str] = {
     MediaKind.VIDEO: "影片",
@@ -37,6 +92,13 @@ KIND_LABELS: dict[MediaKind, str] = {
     MediaKind.PDF: "PDF",
     MediaKind.EPUB: "EPUB 電子書",
     MediaKind.CBZ: "CBZ 漫畫",
+    MediaKind.TEXT: "文字",
+    MediaKind.MARKUP: "網頁",
+    MediaKind.OFFICE: "Office 文件",
+    MediaKind.SHEET: "試算表",
+    MediaKind.DATA: "資料",
+    MediaKind.SUBTITLE: "字幕",
+    MediaKind.FONT: "字型",
     MediaKind.UNKNOWN: "未知",
 }
 
@@ -58,6 +120,20 @@ def kinds_for_extension(extension: str) -> tuple[MediaKind, ...]:
         return (MediaKind.AUDIO,)
     if ext in IMAGE_EXTENSIONS:
         return (MediaKind.IMAGE,)
+    if ext in TEXT_EXTENSIONS:
+        return (MediaKind.TEXT,)
+    if ext in MARKUP_EXTENSIONS:
+        return (MediaKind.MARKUP,)
+    if ext in OFFICE_EXTENSIONS:
+        return (MediaKind.OFFICE,)
+    if ext in SHEET_EXTENSIONS:
+        return (MediaKind.SHEET,)
+    if ext in DATA_EXTENSIONS:
+        return (MediaKind.DATA,)
+    if ext in SUBTITLE_EXTENSIONS:
+        return (MediaKind.SUBTITLE,)
+    if ext in FONT_EXTENSIONS:
+        return (MediaKind.FONT,)
     if ext == "pdf":
         return (MediaKind.PDF,)
     if ext == "epub":
@@ -85,5 +161,15 @@ def is_supported(path: str | Path) -> bool:
 
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
-    VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | IMAGE_EXTENSIONS | {"pdf", "epub", "cbz"}
+    VIDEO_EXTENSIONS
+    | AUDIO_EXTENSIONS
+    | IMAGE_EXTENSIONS
+    | TEXT_EXTENSIONS
+    | MARKUP_EXTENSIONS
+    | OFFICE_EXTENSIONS
+    | SHEET_EXTENSIONS
+    | DATA_EXTENSIONS
+    | SUBTITLE_EXTENSIONS
+    | FONT_EXTENSIONS
+    | {"pdf", "epub", "cbz"}
 )

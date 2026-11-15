@@ -10,16 +10,42 @@
 - ``OpenConvert.exe``：圖形介面
 - ``OpenConvertCLI.exe``：命令列（與 GUI 共用同一份 Python/Qt/Pillow 函式庫）
 
-FFmpeg 不內嵌，使用者可放到 ``dist/OpenConvert/tools/`` 或使用系統安裝的版本。
+FFmpeg 與 LibreOffice 都不內嵌：FFmpeg 可放到 ``dist/OpenConvert/tools/``，或使用系統安裝的版本；
+LibreOffice 由使用者自行安裝（Office 文件轉換才會用到）。
 """
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
 
 ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - SPECPATH 由 PyInstaller 注入
 
-binaries = collect_dynamic_libs("pypdfium2_raw")  # pypdfium2 原生函式庫不會自動收集
+# 原生函式庫不會被自動收集
+binaries = collect_dynamic_libs("pypdfium2_raw")
+binaries += collect_dynamic_libs("pillow_heif")
+binaries += collect_dynamic_libs("brotli")
+
+# python-docx 需要內建的預設範本檔案
+datas = collect_data_files("docx")
+
+# Markdown 的擴充是以模組路徑動態載入，PyInstaller 靜態分析看不到
+HIDDEN_IMPORTS = [
+    "pypdfium2_raw",
+    "pillow_heif",
+    "markdown.extensions.tables",
+    "markdown.extensions.fenced_code",
+    "markdown.extensions.sane_lists",
+    "markdown.extensions.nl2br",
+    "markdownify",
+    "bs4",
+    "yaml",
+    "tomli_w",
+    "docx",
+    "openpyxl",
+    "fontTools",
+    "fontTools.ttLib",
+    "brotli",
+]
 
 EXCLUDES = [
     "tkinter",
@@ -51,8 +77,8 @@ def analyse(script: str):
         [str(ROOT / "packaging" / script)],
         pathex=[str(ROOT)],
         binaries=binaries,
-        datas=[],
-        hiddenimports=["pypdfium2_raw"],
+        datas=datas,
+        hiddenimports=HIDDEN_IMPORTS,
         hookspath=[],
         hooksconfig={},
         runtime_hooks=[],

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from ...core.ffmpeg import FFmpegTools
 from ...core.job import Job, JobStatus
 from ...core.kinds import SUPPORTED_EXTENSIONS, extension_of
+from ...core.office import discover as discover_office
 from ...core.settings import Settings
 from ...core.targets import (
     TargetSpec,
@@ -150,7 +151,7 @@ class ConvertPage(QWidget):
     def _build_stack(self) -> QWidget:
         self._drop = DropZone(
             "拖放檔案到這裡",
-            "支援影片、音訊、圖片、PDF、EPUB、CBZ，也可以直接拖入整個資料夾。",
+            "支援影片、音訊、圖片、PDF、電子書、文件、資料表、字幕、字型與壓縮，也可以直接拖入整個資料夾。",
             icon_name="plus",
             action_text="選擇檔案",
         )
@@ -198,6 +199,15 @@ class ConvertPage(QWidget):
         self._gif_fps_spin.setRange(5, 30)
         self._gif_fps_spin.setValue(12)
         self._gif_fps_spin.setSuffix(" fps")
+
+        self._fps_spin = QSpinBox()
+        self._fps_spin.setRange(1, 60)
+        self._fps_spin.setValue(30)
+        self._fps_spin.setSuffix(" fps")
+        self._fps_spin.setToolTip("抽出影格或圖片轉影片時使用的影格率。")
+
+        self._sheet_edit = QLineEdit()
+        self._sheet_edit.setPlaceholderText("工作表名稱（留空表示第一個工作表）")
 
         self._pages_edit = QLineEdit()
         self._pages_edit.setPlaceholderText("例如 1-3,7（留空表示全部頁面）")
@@ -256,12 +266,24 @@ class ConvertPage(QWidget):
         grid.addWidget(self._dpi_combo, 4, 1)
         self._opt["dpi"] = (label_dpi, self._dpi_combo)
 
+        label_fps = QLabel("影格率")
+        label_fps.setObjectName("Muted")
+        grid.addWidget(label_fps, 4, 2)
+        grid.addWidget(self._fps_spin, 4, 3)
+        self._opt["fps"] = (label_fps, self._fps_spin)
+
+        label_sheet = QLabel("工作表")
+        label_sheet.setObjectName("Muted")
+        grid.addWidget(label_sheet, 5, 0)
+        grid.addWidget(self._sheet_edit, 5, 1, 1, 3)
+        self._opt["sheet"] = (label_sheet, self._sheet_edit)
+
         label_output = QLabel("輸出資料夾")
         label_output.setObjectName("Muted")
-        grid.addWidget(label_output, 5, 0)
-        grid.addWidget(self._output_edit, 5, 1, 1, 1)
-        grid.addWidget(output_browse, 5, 2)
-        grid.addWidget(output_reset, 5, 3)
+        grid.addWidget(label_output, 6, 0)
+        grid.addWidget(self._output_edit, 6, 1, 1, 1)
+        grid.addWidget(output_browse, 6, 2)
+        grid.addWidget(output_reset, 6, 3)
 
         return self._card
 
@@ -456,16 +478,21 @@ class ConvertPage(QWidget):
         token = spec.token if spec else ""
 
         visible = {
-            "quality": converter == "media" and token != "video-gif",
+            "quality": converter == "media" and token not in ("video-gif", "video-frames"),
             "size": converter in ("media", "image"),
-            "image_quality": converter == "image" and token in ("jpg", "webp"),
+            "image_quality": converter == "image" and token in ("jpg", "webp", "avif", "heic"),
             "gif": token == "video-gif",
+            "fps": token in ("video-frames", "images-video"),
             "pages": token == "pdf-extract",
-            "dpi": token in ("pdf-png", "pdf-jpg"),
+            "dpi": token in ("pdf-png", "pdf-jpg", "pdf-cbz"),
+            "sheet": converter == "data" and self._has_sheet_source(),
         }
         for key, widgets in self._opt.items():
             for widget in widgets:
                 widget.setVisible(visible.get(key, False))
+
+    def _has_sheet_source(self) -> bool:
+        return any(path.suffix.lower() in (".xlsx", ".xlsm") for path in self._files)
 
     # ------------------------------------------------------------------ 規劃
 
@@ -477,6 +504,10 @@ class ConvertPage(QWidget):
             "pages": self._pages_edit.text().strip(),
             "dpi": self._dpi_combo.currentData() or 150,
             "gif_fps": self._gif_fps_spin.value(),
+            "frame_fps": self._fps_spin.value(),
+            "video_fps": self._fps_spin.value(),
+            "frame_seconds": 2.0,
+            "sheet": self._sheet_edit.text().strip(),
         }
 
     def _replan(self) -> None:
@@ -515,6 +546,16 @@ class ConvertPage(QWidget):
                 "error",
             )
             return
+
+        if any(job.target.needs_office for job in pending):
+            office_tools = discover_office(self._settings.office_path)
+            if not office_tools.available:
+                self._notify(
+                    "找不到 LibreOffice，無法轉換 Office 文件。請安裝 LibreOffice，"
+                    "或到「設定」指定 soffice 路徑。",
+                    "error",
+                )
+                return
 
         self._queue.apply_settings(self._settings)
         self._files.clear()

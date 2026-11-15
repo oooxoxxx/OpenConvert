@@ -63,12 +63,58 @@ def test_resize_does_not_upscale(tools, png_file: Path):
         ("tiff", "TIFF"),
         ("image-gif", "GIF"),
         ("ico", "ICO"),
+        ("avif", "AVIF"),
     ],
 )
 def test_multiple_target_formats(tools, png_file: Path, token: str, expected: str):
     _job, outputs = run_conversion([png_file], token, tools)
     with Image.open(outputs[0]) as image:
         assert image.format == expected
+
+
+def test_avif_keeps_alpha(tools, rgba_png_file: Path):
+    _job, outputs = run_conversion([rgba_png_file], "avif", tools)
+
+    with Image.open(outputs[0]) as image:
+        assert image.format == "AVIF"
+        assert image.mode in ("RGBA", "RGBa")
+        assert image.getpixel((5, 5))[3] == 255
+        assert image.getpixel((35, 35))[3] < 10
+
+
+def test_heic_output(tools, png_file: Path):
+    from openconvert.core.imaging import heic_available
+
+    if not heic_available():
+        pytest.skip("環境沒有 pillow-heif")
+
+    _job, outputs = run_conversion([png_file], "heic", tools)
+    with Image.open(outputs[0]) as image:
+        assert image.format in ("HEIF", "HEIC")
+
+
+def test_heic_input_can_be_read(tools, tmp_path: Path):
+    from openconvert.core.imaging import heic_available
+
+    if not heic_available():
+        pytest.skip("環境沒有 pillow-heif")
+
+    source = tmp_path / "photo.heic"
+    Image.new("RGB", (32, 24), (10, 120, 200)).save(source, "HEIF")
+
+    _job, outputs = run_conversion([source], "jpg", tools)
+    with Image.open(outputs[0]) as image:
+        assert image.format == "JPEG"
+        assert image.size == (32, 24)
+
+
+def test_apng_preserves_animation(tools, animated_gif_file: Path):
+    _job, outputs = run_conversion([animated_gif_file], "apng", tools)
+
+    assert outputs[0].suffix == ".png"
+    with Image.open(outputs[0]) as image:
+        assert image.format == "PNG"
+        assert getattr(image, "n_frames", 1) == 3
 
 
 def test_existing_output_is_not_overwritten(tools, png_file: Path, tmp_path: Path):

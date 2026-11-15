@@ -119,6 +119,52 @@ def test_epub_escapes_special_characters_in_title(tools, png_series: list[Path])
     assert "&lt;C&gt;" in opf
 
 
+def test_text_to_epub(tools, txt_file: Path, tmp_path: Path):
+    _job, outputs = run_conversion([txt_file], "epub", tools, output_dir=tmp_path / "out")
+
+    assert_valid_epub(outputs[0])
+    with zipfile.ZipFile(outputs[0]) as archive:
+        chapter = archive.read("OEBPS/chapter_0001.xhtml").decode("utf-8")
+    assert "第一段文字" in chapter
+
+
+def test_markdown_to_epub_uses_headings(tools, md_file: Path, tmp_path: Path):
+    _job, outputs = run_conversion([md_file], "epub", tools, output_dir=tmp_path / "out")
+
+    assert_valid_epub(outputs[0])
+    with zipfile.ZipFile(outputs[0]) as archive:
+        nav = archive.read("OEBPS/nav.xhtml").decode("utf-8")
+    assert "主標題" in nav
+
+
+def test_text_epub_roundtrip(tools, txt_file: Path, tmp_path: Path):
+    _job, epub_outputs = run_conversion([txt_file], "epub", tools, output_dir=tmp_path / "a")
+    _job, text_outputs = run_conversion([epub_outputs[0]], "epub-txt", tools, output_dir=tmp_path / "b")
+
+    text = text_outputs[0].read_text(encoding="utf-8")
+    assert "第一段文字" in text
+    assert "English" in text
+
+
+def test_epub_without_text_raises_readable_error(tools, cbz_file: Path, tmp_path: Path):
+    from openconvert.core.errors import ConversionError
+
+    _job, epub_outputs = run_conversion([cbz_file], "epub", tools, output_dir=tmp_path / "a")
+
+    with pytest.raises(ConversionError) as excinfo:
+        run_conversion([epub_outputs[0]], "epub-txt", tools)
+    assert "沒有可抽取的文字" in excinfo.value.user_message
+
+
+def test_cbz_to_pdf(tools, cbz_file: Path, tmp_path: Path):
+    from pypdf import PdfReader
+
+    _job, outputs = run_conversion([cbz_file], "book-pdf", tools, output_dir=tmp_path / "out")
+
+    assert outputs[0].suffix == ".pdf"
+    assert len(PdfReader(str(outputs[0])).pages) == 3
+
+
 def test_corrupted_cbz_raises_readable_error(tools, tmp_path: Path):
     broken = tmp_path / "broken.cbz"
     broken.write_bytes(b"not a zip")

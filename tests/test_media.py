@@ -76,6 +76,60 @@ def test_probe_reports_duration(tools, sample_mp4: Path):
     assert human_size(info.size_bytes)
 
 
+def test_video_to_m4v(tools, sample_mp4: Path, tmp_path: Path):
+    _job, outputs = run_conversion([sample_mp4], "m4v", tools, output_dir=tmp_path)
+
+    assert outputs[0].suffix == ".m4v"
+    info = probe(outputs[0], tools)
+    assert info.video_stream is not None
+    assert info.video_stream.codec_name == "h264"
+
+
+def test_video_to_wmv(tools, sample_mp4: Path, tmp_path: Path):
+    _job, outputs = run_conversion([sample_mp4], "wmv", tools, output_dir=tmp_path)
+
+    assert outputs[0].suffix == ".wmv"
+    info = probe(outputs[0], tools)
+    assert info.video_stream is not None
+    assert info.video_stream.codec_name in ("wmv2", "wmv3")
+
+
+def test_wav_to_aiff(tools, tmp_path: Path):
+    require_ffmpeg(tools)
+    source = make_noise_wav(tmp_path / "tone.wav")
+    _job, outputs = run_conversion([source], "aiff", tools, output_dir=tmp_path / "out")
+
+    assert outputs[0].suffix == ".aiff"
+    info = probe(outputs[0], tools)
+    assert info.audio_stream is not None
+
+
+def test_extract_frames(tools, sample_mp4: Path, tmp_path: Path):
+    _job, outputs = run_conversion(
+        [sample_mp4], "video-frames", tools, output_dir=tmp_path / "out", frame_fps=5
+    )
+
+    assert len(outputs) >= 3
+    assert all(path.suffix == ".png" for path in outputs)
+    assert outputs[0].parent.name == "clip_frames"
+
+    from PIL import Image
+
+    with Image.open(outputs[0]) as image:
+        assert image.width > 0
+
+
+def test_images_to_video(tools, png_series: list[Path], tmp_path: Path):
+    _job, outputs = run_conversion(
+        png_series, "images-video", tools, output_dir=tmp_path / "out", frame_seconds=1
+    )
+
+    assert outputs[0].suffix == ".mp4"
+    info = probe(outputs[0], tools)
+    assert info.video_stream is not None
+    assert 2.4 <= info.duration <= 3.6
+
+
 def test_missing_ffmpeg_gives_readable_error(png_file: Path):
     from openconvert.core.errors import FFmpegNotFoundError
     from openconvert.core.ffmpeg import FFmpegTools

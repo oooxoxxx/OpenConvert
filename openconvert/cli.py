@@ -19,6 +19,7 @@ from .core.errors import ConversionCancelled, OpenConvertError
 from .core.ffmpeg import discover
 from .core.job import Job
 from .core.kinds import SUPPORTED_EXTENSIONS, extension_of
+from .core.office import discover as office_discover
 from .core.targets import TARGETS, plan_groups, target_by_token
 
 
@@ -36,11 +37,15 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("-o", "--output", help="輸出資料夾（預設與來源相同）")
     convert.add_argument("--quality", choices=("high", "balanced", "small"), default="balanced")
     convert.add_argument("--max-size", type=int, default=0, help="最大邊長（像素），0 表示原始尺寸")
+    convert.add_argument("--fps", type=int, default=0, help="影格率（GIF、抽影格、圖片轉影片）")
+    convert.add_argument("--frame-seconds", type=float, default=2.0, help="圖片轉影片時每張圖片停留的秒數")
+    convert.add_argument("--sheet", default="", help="Excel 工作表名稱（留空表示使用第一個工作表）")
     convert.add_argument("--pages", default="", help="PDF 抽取頁碼，例如 1-3,7")
     convert.add_argument("--dpi", type=int, default=150, help="PDF 轉圖片的解析度")
     convert.add_argument("--overwrite", action="store_true", help="允許覆蓋同名輸出檔")
     convert.add_argument("--ffmpeg", help="指定 ffmpeg 執行檔路徑")
     convert.add_argument("--ffprobe", help="指定 ffprobe 執行檔路徑")
+    convert.add_argument("--office", help="指定 LibreOffice 的 soffice 執行檔路徑")
     convert.add_argument("-q", "--quiet", action="store_true", help="只輸出錯誤")
 
     probe = sub.add_parser("probe", help="輸出檔案的中繼資料（JSON）")
@@ -95,19 +100,32 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         print("找不到 FFmpeg，無法轉換影片或音訊。", file=sys.stderr)
         return 3
 
+    office_tools = office_discover(args.office)
+    if spec.needs_office and not office_tools.available:
+        print(
+            "找不到 LibreOffice，無法轉換 Office 文件。請安裝 LibreOffice，或以 --office 指定 soffice 路徑。",
+            file=sys.stderr,
+        )
+        return 3
+
     paths = _expand_inputs(args.inputs, args.quiet)
     accepted = [path for path in paths if spec.accepts(path)]
     if not accepted:
         print("沒有可以轉換成這個格式的檔案。", file=sys.stderr)
         return 2
 
+    fps = max(0, args.fps)
     options = {
         "quality": args.quality,
         "quality_jpeg": 90,
         "max_dimension": args.max_size,
         "pages": args.pages,
         "dpi": args.dpi,
-        "gif_fps": 12,
+        "gif_fps": fps or 12,
+        "frame_fps": fps or 1,
+        "video_fps": fps or 30,
+        "frame_seconds": args.frame_seconds,
+        "sheet": args.sheet,
     }
 
     groups = plan_groups(spec, accepted)
@@ -132,6 +150,7 @@ def _cmd_convert(args: argparse.Namespace) -> int:
             overwrite=args.overwrite,
             tools=tools,
             progress=on_progress,
+            office=office_tools,
         )
 
         if not args.quiet:

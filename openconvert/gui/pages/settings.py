@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.ffmpeg import FFmpegTools, discover, version_of
+from ...core.office import discover as discover_office
+from ...core.office import version_of as office_version
 from ...core.resources import tools_dir
 from ...core.settings import Settings, config_dir
 from ..utils import open_path
@@ -35,6 +37,7 @@ THEME_LABELS: tuple[tuple[str, str], ...] = (
 )
 
 FFMPEG_DOWNLOAD_URL = "https://ffmpeg.org/download.html"
+LIBREOFFICE_DOWNLOAD_URL = "https://www.libreoffice.org/download/download/"
 
 
 class SettingsPage(QWidget):
@@ -86,6 +89,7 @@ class SettingsPage(QWidget):
         column.addWidget(self._behaviour_card())
         column.addWidget(self._output_card())
         column.addWidget(self._ffmpeg_card())
+        column.addWidget(self._office_card())
         column.addWidget(self._privacy_card())
         column.addStretch(1)
 
@@ -231,6 +235,42 @@ class SettingsPage(QWidget):
         layout.addLayout(browse_row)
         return frame
 
+    def _office_card(self) -> QWidget:
+        frame, layout = self._card(
+            "LibreOffice（Office 文件）",
+            "OpenConvert 不內建 LibreOffice。若系統中找不到，其他格式仍可正常使用。",
+        )
+
+        self._office_status = QLabel()
+        self._office_status.setWordWrap(True)
+        layout.addWidget(self._office_status)
+
+        status_row = QHBoxLayout()
+        recheck = QPushButton("重新偵測")
+        recheck.setObjectName("Ghost")
+        recheck.clicked.connect(self._recheck_office)
+        download = QPushButton("開啟 LibreOffice 下載頁")
+        download.setObjectName("Ghost")
+        download.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(LIBREOFFICE_DOWNLOAD_URL)))
+        status_row.addWidget(recheck)
+        status_row.addWidget(download)
+        status_row.addStretch(1)
+        layout.addLayout(status_row)
+
+        self._office_edit = QLineEdit()
+        self._office_edit.setPlaceholderText("自動偵測（可留空）")
+        self._office_edit.editingFinished.connect(self._save)
+        layout.addWidget(self._row("soffice 執行檔路徑", self._office_edit))
+
+        browse_row = QHBoxLayout()
+        pick = QPushButton("選擇 soffice…")
+        pick.setObjectName("Ghost")
+        pick.clicked.connect(lambda: self._browse_binary(self._office_edit))
+        browse_row.addWidget(pick)
+        browse_row.addStretch(1)
+        layout.addLayout(browse_row)
+        return frame
+
     def _privacy_card(self) -> QWidget:
         frame, layout = self._card("隱私與紀錄", "OpenConvert 不會上傳你的檔案，也沒有任何遙測。")
 
@@ -262,6 +302,7 @@ class SettingsPage(QWidget):
         self._output_edit.setText(settings.output_dir or "")
         self._ffmpeg_edit.setText(settings.ffmpeg_path or "")
         self._ffprobe_edit.setText(settings.ffprobe_path or "")
+        self._office_edit.setText(settings.office_path or "")
         self._keep_history.setChecked(settings.keep_history)
         self._play_sound.setChecked(settings.play_sound)
         self._update_status()
@@ -286,6 +327,19 @@ class SettingsPage(QWidget):
             color = "#d29922"
             self._ffmpeg_status.setText("● 找不到 FFmpeg。影片與音訊轉換目前無法使用。")
         self._ffmpeg_status.setStyleSheet(f"color: {color}; font-size: 12px;")
+        self._update_office_status()
+
+    def _update_office_status(self) -> None:
+        tools = discover_office(self._settings.office_path)
+        if tools.available:
+            version = office_version(tools.soffice) or "LibreOffice"
+            short = version.split(" Copyright")[0]
+            color = "#3fb950"
+            self._office_status.setText(f"● 已找到 LibreOffice　{short}")
+        else:
+            color = "#d29922"
+            self._office_status.setText("● 找不到 LibreOffice。Office 文件轉換目前無法使用。")
+        self._office_status.setStyleSheet(f"color: {color}; font-size: 12px;")
 
     # ------------------------------------------------------------------ 儲存
 
@@ -298,6 +352,7 @@ class SettingsPage(QWidget):
         settings.overwrite = self._overwrite.isChecked()
         settings.ffmpeg_path = self._ffmpeg_edit.text().strip() or None
         settings.ffprobe_path = self._ffprobe_edit.text().strip() or None
+        settings.office_path = self._office_edit.text().strip() or None
         settings.keep_history = self._keep_history.isChecked()
         settings.play_sound = self._play_sound.isChecked()
         settings.save()
@@ -346,6 +401,14 @@ class SettingsPage(QWidget):
             Toast.show_message(self.window(), "已找到 FFmpeg。", "success")
         else:
             Toast.show_message(self.window(), "仍找不到 FFmpeg。", "warning")
+
+    def _recheck_office(self) -> None:
+        self._update_office_status()
+        tools = discover_office(self._settings.office_path)
+        if tools.available:
+            Toast.show_message(self.window(), "已找到 LibreOffice。", "success")
+        else:
+            Toast.show_message(self.window(), "仍找不到 LibreOffice。", "warning")
 
     def _open_tools_dir(self) -> None:
         directory = tools_dir()

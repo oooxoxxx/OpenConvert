@@ -29,14 +29,23 @@ def sanitize_stem(stem: str) -> str:
     return cleaned
 
 
+_DOUBLE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz")
+
+
 def unique_path(candidate: Path) -> Path:
     """若路徑已存在，回傳 ``名稱 (1).ext``、``名稱 (2).ext``……"""
     if not candidate.exists():
         return candidate
-    stem, suffix = candidate.stem, candidate.suffix
+    name = candidate.name
+    for suffix in _DOUBLE_SUFFIXES:
+        if name.lower().endswith(suffix):
+            stem, ext = name[: -len(suffix)], name[-len(suffix) :]
+            break
+    else:
+        stem, ext = candidate.stem, candidate.suffix
     index = 1
     while True:
-        alt = candidate.with_name(f"{stem} ({index}){suffix}")
+        alt = candidate.with_name(f"{stem} ({index}){ext}")
         if not alt.exists():
             return alt
         index += 1

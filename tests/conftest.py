@@ -43,6 +43,172 @@ def require_ffmpeg(tools):
         pytest.skip("系統沒有 FFmpeg，跳過媒體測試")
 
 
+@pytest.fixture(scope="session")
+def office_tools():
+    from openconvert.core.office import discover
+
+    return discover()
+
+
+def require_office(office_tools):
+    if not office_tools.available:
+        pytest.skip("系統沒有 LibreOffice，跳過 Office 文件測試")
+
+
+def find_system_font() -> Path | None:
+    """找一個可用來測試的字型檔；找不到時回傳 None。"""
+    candidates = [
+        Path(r"C:\Windows\Fonts\arial.ttf"),
+        Path(r"C:\Windows\Fonts\calibri.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+        Path("/Library/Fonts/Arial.ttf"),
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    for root in (Path("/usr/share/fonts"), Path("/Library/Fonts")):
+        if root.is_dir():
+            for match in root.rglob("*.ttf"):
+                return match
+    return None
+
+
+# --------------------------------------------------------------------------- 文字 / 文件
+
+
+@pytest.fixture
+def md_file(tmp_path: Path) -> Path:
+    path = tmp_path / "doc.md"
+    path.write_text(
+        "# 主標題\n\n"
+        "這是一段文字，包含 **粗體** 與 *斜體*。\n\n"
+        "- 項目一\n- 項目二\n\n"
+        "| 欄位 | 值 |\n| --- | --- |\n| a | 1 |\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def html_file(tmp_path: Path) -> Path:
+    path = tmp_path / "page.html"
+    path.write_text(
+        "<!DOCTYPE html><html><head><title>測試</title></head><body>"
+        "<h1>標題</h1><p>段落一</p><ul><li>甲</li><li>乙</li></ul>"
+        "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def txt_file(tmp_path: Path) -> Path:
+    path = tmp_path / "note.txt"
+    path.write_text("第一段文字。\n\n第二段文字，含中文與 English。\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def docx_file(tmp_path: Path) -> Path:
+    from docx import Document
+
+    document = Document()
+    document.add_heading("報告標題", level=1)
+    paragraph = document.add_paragraph("這是一段")
+    run = paragraph.add_run("粗體")
+    run.bold = True
+    document.add_paragraph("項目一", style="List Bullet")
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "A"
+    table.cell(0, 1).text = "B"
+    table.cell(1, 0).text = "1"
+    table.cell(1, 1).text = "2"
+
+    path = tmp_path / "report.docx"
+    document.save(path)
+    return path
+
+
+# --------------------------------------------------------------------------- 資料
+
+
+@pytest.fixture
+def csv_file(tmp_path: Path) -> Path:
+    path = tmp_path / "data.csv"
+    path.write_text("name,age,city\nAlice,30,台北\nBob,25,高雄\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def json_file(tmp_path: Path) -> Path:
+    path = tmp_path / "data.json"
+    path.write_text(
+        '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]',
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def xlsx_file(tmp_path: Path) -> Path:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "成績"
+    worksheet.append(["name", "score"])
+    worksheet.append(["Alice", 90])
+    worksheet.append(["Bob", 80])
+    path = tmp_path / "sheet.xlsx"
+    workbook.save(path)
+    workbook.close()
+    return path
+
+
+# --------------------------------------------------------------------------- 字幕
+
+
+@pytest.fixture
+def srt_file(tmp_path: Path) -> Path:
+    path = tmp_path / "movie.srt"
+    path.write_text(
+        "1\n00:00:01,000 --> 00:00:03,500\n<i>Hello</i> world\n\n"
+        "2\n00:00:04,000 --> 00:00:06,000\nSecond line\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def ass_file(tmp_path: Path) -> Path:
+    path = tmp_path / "movie.ass"
+    path.write_text(
+        "[Script Info]\nScriptType: v4.00+\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default,Arial,64,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,"
+        "100,0,0,1,3,0,2,40,40,40,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        "Dialogue: 0,0:00:01.00,0:00:03.50,Default,,0,0,0,,{\\i1}Hello{\\i0} world\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture(scope="session")
+def system_font() -> Path:
+    font = find_system_font()
+    if font is None:
+        pytest.skip("系統找不到可用字型，跳過字型測試")
+    return font
+
+
 # --------------------------------------------------------------------------- 圖片
 
 
@@ -68,6 +234,22 @@ def rgba_png_file(tmp_path: Path) -> Path:
             image.putpixel((x, y), (0, 128, 255, 255))
     image.save(path, "PNG")
     image.close()
+    return path
+
+
+@pytest.fixture
+def animated_gif_file(tmp_path: Path) -> Path:
+    from PIL import Image
+
+    path = tmp_path / "anim.gif"
+    frames = [
+        Image.new("RGBA", (40, 40), (255, 0, 0, 255)),
+        Image.new("RGBA", (40, 40), (0, 255, 0, 255)),
+        Image.new("RGBA", (40, 40), (0, 0, 255, 255)),
+    ]
+    frames[0].save(path, "GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
+    for frame in frames:
+        frame.close()
     return path
 
 

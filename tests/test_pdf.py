@@ -119,3 +119,40 @@ def test_corrupted_pdf_raises_readable_error(tools, tmp_path: Path):
 
     with pytest.raises(ConversionError):
         run_conversion([broken], "pdf-png", tools)
+
+
+# --------------------------------------------------------------------------- 轉 CBZ
+
+
+def test_pdf_to_cbz(tools, pdf_file: Path, tmp_path: Path):
+    import zipfile
+
+    _job, outputs = run_conversion([pdf_file], "pdf-cbz", tools, output_dir=tmp_path / "out", dpi=72)
+
+    assert outputs[0].suffix == ".cbz"
+    with zipfile.ZipFile(outputs[0]) as archive:
+        names = archive.namelist()
+    assert len(names) == 3
+    assert names[0] == "page_0001.jpg"
+
+
+# --------------------------------------------------------------------------- 抽文字
+
+
+def test_pdf_without_text_layer_raises(tools, pdf_file: Path):
+    from openconvert.core.errors import ConversionError
+
+    with pytest.raises(ConversionError) as excinfo:
+        run_conversion([pdf_file], "pdf-txt", tools)
+    assert "沒有可抽取的文字層" in excinfo.value.user_message
+
+
+def test_pdf_with_text_layer_extracts_text(tools, office_tools, docx_file: Path, tmp_path: Path):
+    from .conftest import require_office
+
+    require_office(office_tools)
+
+    _job, pdf_outputs = run_conversion([docx_file], "docx-pdf", tools, output_dir=tmp_path / "a")
+    _job, outputs = run_conversion([pdf_outputs[0]], "pdf-txt", tools, output_dir=tmp_path / "b")
+
+    assert "報告" in outputs[0].read_text(encoding="utf-8")

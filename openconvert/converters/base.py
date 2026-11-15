@@ -15,6 +15,8 @@ from ..core.errors import ConversionCancelled, UnsupportedFormatError
 from ..core.ffmpeg import FFmpegTools
 from ..core.job import Job
 from ..core.kinds import kinds_for
+from ..core.office import OfficeTools
+from ..core.office import discover as discover_office
 
 
 @dataclass
@@ -27,9 +29,16 @@ class ConvertContext:
     tools: FFmpegTools
     progress: Callable[[float, str], None]
     log: Callable[[str], None] = lambda _msg: None
+    office: OfficeTools | None = None
     _created: list[Path] = field(default_factory=list)
 
     # ------------------------------------------------------------ 便利屬性
+
+    def office_tools(self) -> OfficeTools:
+        """延遲偵測 LibreOffice，只有真正需要時才付出偵測成本。"""
+        if self.office is None:
+            self.office = discover_office()
+        return self.office
 
     @property
     def sources(self) -> list[Path]:
