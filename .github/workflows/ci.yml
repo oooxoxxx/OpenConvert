@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.10"
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.13"
+          - os: macos-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: 安裝系統相依（Linux）
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libegl1 libxkbcommon-x11-0 libxcb-cursor0
+
+      - name: 安裝系統相依（macOS）
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: 安裝系統相依（Windows）
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+
+      - name: 安裝 Python 相依
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: 驗證 FFmpeg
+        run: ffmpeg -version
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: 測試
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -q
+
+  package:
+    name: Windows 打包檢查
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 安裝相依
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: PyInstaller
+        run: pyinstaller packaging/openconvert.spec --noconfirm
+
+      - name: 檢查產物
+        run: |
+          if (-not (Test-Path "dist/OpenConvert/OpenConvert.exe")) {
+            throw "找不到 dist/OpenConvert/OpenConvert.exe"
+          }
+          if (-not (Test-Path "dist/OpenConvert/OpenConvertCLI.exe")) {
+            throw "找不到 dist/OpenConvert/OpenConvertCLI.exe"
+          }
+        shell: pwsh
+
+      - name: 冷凍版實際轉檔
+        run: |
+          python -c "from PIL import Image; Image.new('RGB', (64, 48), (10, 120, 200)).save('smoke.png')"
+          dist\OpenConvert\OpenConvertCLI.exe formats
+          dist\OpenConvert\OpenConvertCLI.exe convert smoke.png -t jpg -o smoke-out
+          if (-not (Test-Path "smoke-out/smoke.jpg")) {
+            throw "冷凍版沒有產生輸出檔"
+          }
+        shell: pwsh
+
+      - name: 冷凍版 GUI 啟動
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $process = Start-Process -FilePath "dist\OpenConvert\OpenConvert.exe" -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "GUI 啟動後立即結束（exit code $($process.ExitCode)）"
+          }
+          Stop-Process -Id $process.Id -Force
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenConvert-windows-ci
+          path: dist/OpenConvert
+          if-no-files-found: error
