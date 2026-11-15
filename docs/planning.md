@@ -171,3 +171,19 @@
 2. 手動在 Windows 上以 `python -m openconvert` 啟動，完成一次影片、圖片、PDF、CBZ→EPUB 轉換。
 3. `python -m openconvert --version` 與 `--help` 可運作。
 4. CI 在乾淨環境可重現測試結果。
+
+---
+
+## 7. 目前狀態（0.1.0，2026-11-15）
+
+| 驗證項目 | 狀態 | 說明 |
+| --- | --- | --- |
+| pytest | 完成 | 102 個測試，含真實檔案產出、內容比對、錯誤路徑 |
+| 靜態檢查 | 完成 | `ruff check` 與 `ruff format --check` 全綠 |
+| GUI 實際操作 | 完成 | 離屏 Qt 平台啟動、加入檔案、PNG → JPEG 轉換成功；另以截圖檢視深色／淺色版面 |
+| 引擎手動驗證 | 完成 | 凍結版 CLI 實際轉出 JPEG、PDF → PNG、MP4 → MP3、圖片 → EPUB |
+| 打包版啟動 | 完成 | `dist/OpenConvert/OpenConvert.exe` 可啟動且不閃退（含 GUI 與 CLI 兩支執行檔） |
+| CI 重現 | 待執行 | workflow 已備妥，尚未推送遠端，第一次 push 後才會實際跑 |
+
+尚未完成（刻意留到後續版本）：安裝程式（MSI／`.app`／AppImage）、macOS 簽章與公證、
+失敗工作一鍵重試、輸出檔名樣板。
