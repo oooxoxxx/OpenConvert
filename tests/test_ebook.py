@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -95,7 +96,7 @@ def test_epub_progress_never_goes_backwards(tools, png_series: list[Path]):
     run_conversion(png_series, "epub", tools, progress=lambda fraction, *_: reported.append(fraction))
 
     assert reported, "轉換過程沒有任何進度回報"
-    for previous, current in zip(reported, reported[1:]):
+    for previous, current in itertools.pairwise(reported):
         assert current >= previous, f"進度倒退：{previous} -> {current}"
     assert reported[-1] == 1.0
 
