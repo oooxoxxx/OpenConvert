@@ -34,11 +34,17 @@ dist\OpenConvert\OpenConvertCLI.exe formats
 ```
 
 - 視窗應正常開啟，側邊欄五個頁面可切換。
-- 「設定」頁應顯示 FFmpeg 狀態；若系統已安裝 FFmpeg，會顯示版本。
-- `OpenConvertCLI.exe` 應列出五個格式類別，且可實際轉檔：
+- 「設定」頁應顯示 FFmpeg 與 LibreOffice 狀態；若系統已安裝，會顯示版本。
+- `OpenConvertCLI.exe` 應列出十個格式類別，且可實際轉檔：
 
   ```powershell
+  dist\OpenConvert\OpenConvertCLI.exe formats
   dist\OpenConvert\OpenConvertCLI.exe convert sample.png -t jpg -o out
+  dist\OpenConvert\OpenConvertCLI.exe convert sample.png -t avif -o out       # 新圖片格式
+  dist\OpenConvert\OpenConvertCLI.exe convert movie.srt -t sub-vtt -o out     # 字幕
+  dist\OpenConvert\OpenConvertCLI.exe convert data.csv -t data-json -o out    # 資料
+  dist\OpenConvert\OpenConvertCLI.exe convert font.ttf -t font-woff2 -o out   # 字型
+  dist\OpenConvert\OpenConvertCLI.exe convert report.docx -t docx-pdf -o out  # 需要 LibreOffice
   ```
 
 ### 內含 FFmpeg 的可攜式版本
@@ -49,6 +55,12 @@ dist\OpenConvert\OpenConvertCLI.exe formats
 2. 確認你遵守 FFmpeg 的授權（LGPL 或 GPL，視建置選項而定），並附上授權文字與原始碼取得方式。
 
 本專案的 MIT 授權只涵蓋 OpenConvert 自己的程式碼。CI 產物**不含** FFmpeg。
+
+### LibreOffice
+
+LibreOffice 安裝體積大、平台相依性高，不適合做成可攜式工具；請使用者自行安裝。
+OpenConvert 會在啟動轉換前偵測，找不到時只有 Office 相關目標會回報明確訊息，
+其餘格式（圖片、PDF、字幕、資料、字型…）完全不受影響。
 
 ## 版本號
 
@@ -62,14 +74,14 @@ dist\OpenConvert\OpenConvertCLI.exe formats
 3. 建立標籤並推送：
 
    ```powershell
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.2.0
+   git push origin v0.2.0
    ```
 
 4. `.github/workflows/release-windows.yml` 會自動：
    - 檢查標籤與程式版本一致
    - 建置 PyInstaller 產物
-   - 壓成 `OpenConvert-0.1.0-windows-x64.zip`
+   - 壓成 `OpenConvert-0.2.0-windows-x64.zip`
    - 建立 GitHub Release 並附上 ZIP
 
 也可以從 Actions 頁面手動觸發（`workflow_dispatch`），此時只上傳 artifact、不建立 Release。
@@ -82,7 +94,7 @@ dist\OpenConvert\OpenConvertCLI.exe formats
 - 或提供 SHA-256 檢查碼，讓使用者自行比對：
 
   ```powershell
-  Get-FileHash OpenConvert-0.1.0-windows-x64.zip -Algorithm SHA256
+  Get-FileHash OpenConvert-0.2.0-windows-x64.zip -Algorithm SHA256
   ```
 
 ## 其他平台

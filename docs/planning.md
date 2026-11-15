@@ -69,9 +69,10 @@
 ### 2.4 影像處理：Pillow
 
 - 覆蓋 PNG / JPEG / WebP / BMP / TIFF / GIF / ICO，讀寫皆為 C 實作，速度快。
-- 內建 `ImageOps`、`ImageEnhance` 可支援日後的裁切、縮放、旋轉。
-- AVIF 需 `pillow-avif-plugin`，列為選用，不列入第一階段。
-- **決策：Pillow 為影像轉換主引擎，不引入 ImageMagick**（ImageMagick 需額外安裝、命令列介面複雜、Windows 發行版有政策限制風險）。若日後需要 CMYK / PSD / HEIC，再以選用模組形式加入。
+- Pillow 11.3 起**原生支援 AVIF**（含透明度與動畫），不需額外外掛。
+- HEIC／HEIF 由 `pillow-heif`（BSD-3-Clause）提供，註冊後即為 Pillow 的一般格式。
+- APNG 動畫由 Pillow 內建的 PNG 外掛支援。
+- **決策：Pillow 為影像轉換主引擎，不引入 ImageMagick**（ImageMagick 需額外安裝、命令列介面複雜、Windows 發行版有政策限制風險）。CMYK / PSD 仍不在支援範圍。
 
 ### 2.5 PDF：pypdf + pypdfium2
 
@@ -90,12 +91,26 @@
   - `EbookLib` 僅作為**開發期參考與選用後端**，不列入發行依賴。
   - CBZ 就是 ZIP，直接用標準庫處理。
 
-### 2.7 打包：PyInstaller
+### 2.7 文件、資料與其他格式（0.2.0「全能」版）
+
+- **純文字／Markdown ⇄ HTML**：`Markdown`（BSD-3）、`beautifulsoup4`（MIT）、`markdownify`（MIT）皆為寬鬆授權。
+- **DOCX 讀取**：`python-docx`（MIT），只讀不寫，段落／清單／表格可轉成 Markdown 或純文字。
+- **試算表與資料**：`openpyxl`（MIT）、`PyYAML`（MIT）、`tomli-w` / `tomli`（MIT）。
+- **字幕**：SRT／VTT／ASS 格式簡單，自行以正規表達式實作，不新增依賴。
+- **字型**：`fonttools`（MIT）負責 TTF／OTF／WOFF／WOFF2 互轉；WOFF2 需要 `brotli`（MIT）。
+- **壓縮**：標準庫 `zipfile` / `tarfile`。
+- **Office 排版轉換（DOCX／PPTX／XLSX… → PDF）**：外部引擎 `LibreOffice`（MPL-2.0）。
+  - **決策**：與 FFmpeg 相同定位 —— **不內嵌、不散布**，由使用者自行安裝；偵測不到時只有 Office 目標失敗並顯示明確訊息。
+  - 每次轉換使用獨立的 `-env:UserInstallation` 暫時設定檔，避免與已開啟的 LibreOffice 互相鎖定。
+  - 不引入 `unoconv` / `docx2pdf`（前者需常駐服務，後者依賴 Word／COM）。
+- **掃描型 PDF 的 OCR**：不在支援範圍（需再引入 Tesseract 等引擎，體積與平台複雜度高）。
+
+### 2.8 打包：PyInstaller
 
 - `--onedir` 啟動快、較不易被防毒誤判；`--onefile` 單檔方便但每次啟動要解壓。
 - **決策**：發行 `--onedir` 的 ZIP（主要）與 `--onefile`（次要）。GUI 程式用 `--windowed` 避免跳出主控台視窗。
 
-### 2.8 CI：GitHub Actions
+### 2.9 CI：GitHub Actions
 
 - `windows-latest` / `ubuntu-latest` / `macos-latest` 執行 `pytest`。
 - Windows 額外產出 PyInstaller 成品並上傳 artifact。
@@ -116,6 +131,22 @@
 | 7 | 批次處理 | 佇列 + 執行緒池 | 第一階段 |
 | 8 | 進度顯示 | FFmpeg `-progress` / 逐檔回報 | 第一階段 |
 | 9 | 錯誤提示與轉換紀錄 | 例外處理 + JSONL 紀錄 | 第一階段 |
+
+## 3.1 第二階段功能範圍（0.2.0）
+
+| # | 功能 | 引擎 | 狀態 |
+|---|---|---|---|
+| 10 | AVIF／HEIC／APNG 圖片 | Pillow + pillow-heif | 已完成 |
+| 11 | 影片：M4V／FLV／WMV／OGV／TS、抽影格、圖片轉影片 | FFmpeg | 已完成 |
+| 12 | 音訊：M4B／AIFF／WMA／AC3 | FFmpeg | 已完成 |
+| 13 | PDF → 純文字、PDF → CBZ | pypdf + pypdfium2 | 已完成 |
+| 14 | 文字／Markdown／HTML → EPUB、EPUB → 純文字、CBZ → PDF | 標準庫 + 自製 EPUB | 已完成 |
+| 15 | Markdown ⇄ HTML、HTML／DOCX → 純文字或 Markdown、DOCX → HTML | Markdown + bs4 + python-docx | 已完成 |
+| 16 | Office／試算表 ⇄ PDF 等排版轉換 | LibreOffice（外部程式） | 已完成 |
+| 17 | CSV／TSV／JSON／XLSX／YAML／TOML 互轉 | openpyxl + PyYAML + tomli-w | 已完成 |
+| 18 | 字幕 SRT／VTT／ASS 互轉 | 自製 | 已完成 |
+| 19 | 字型 TTF／OTF／WOFF／WOFF2 互轉 | fontTools + brotli | 已完成 |
+| 20 | ZIP／tar.gz 打包 | 標準庫 | 已完成 |
 
 ### 明確排除（避免範圍失控）
 

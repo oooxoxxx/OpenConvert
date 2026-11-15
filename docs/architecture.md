@@ -17,13 +17,17 @@
                 │ 純 Python 呼叫
 ┌───────────────▼──────────────────────────────┐
 │  Converter layer                             │
-│  VideoConverter / AudioConverter / …         │
-│  統一介面：convert(source, dest, options)     │
+│  media / image / pdf / ebook / document /    │
+│  data / subtitle / font / archive             │
+│  統一介面：convert(ctx) -> list[Path]         │
 └───────────────┬──────────────────────────────┘
                 │ subprocess / 函式庫
 ┌───────────────▼──────────────────────────────┐
 │  Engines                                     │
-│  FFmpeg · Pillow · pypdf · pypdfium2 · zipfile│
+│  FFmpeg · LibreOffice（外部程式）             │
+│  Pillow · pypdf · pypdfium2 · fontTools ·    │
+│  python-docx · openpyxl · Markdown · bs4 ·   │
+│  PyYAML／tomli-w · zipfile／tarfile           │
 └──────────────────────────────────────────────┘
 ```
 
@@ -38,24 +42,34 @@ openconvert/
 ├── __main__.py          # python -m openconvert
 ├── cli.py               # 無 GUI 的批次模式
 ├── app.py               # QApplication 啟動、主題、單一實例
+├── runner.py            # QThreadPool 佇列與訊號（GUI 與引擎的橋樑）
 ├── core/
 │   ├── errors.py        # 例外階層
 │   ├── kinds.py         # 檔案類型判定（副檔名 → MediaKind）
+│   ├── targets.py       # 目標宣告（82 個目標、分組規則、預設選擇）
 │   ├── job.py           # Job 資料模型與狀態
 │   ├── paths.py         # 輸出路徑、唯一檔名、安全檢查
 │   ├── settings.py      # 使用者設定（JSON 持久化）
 │   ├── history.py       # JSONL 轉換紀錄
-│   ├── registry.py      # 轉換器註冊表與能力查詢
-│   ├── queue.py         # QThreadPool 佇列與訊號
+│   ├── inspect.py       # 檔案資訊摘要
+│   ├── textio.py        # 文字編碼偵測與讀寫
+│   ├── sorting.py       # 檔名自然排序
+│   ├── imaging.py       # Pillow 引擎初始化（HEIF 註冊）
 │   ├── ffmpeg.py        # 尋找 ffmpeg/ffprobe、執行與進度解析
+│   ├── office.py        # 尋找 LibreOffice、無介面轉換
 │   └── resources.py     # 資源路徑（原始碼 / PyInstaller）
 ├── converters/
-│   ├── base.py          # Converter 抽象基底
-│   ├── media.py         # 影片 + 音訊
+│   ├── base.py          # Converter 抽象基底 + ConvertContext
+│   ├── media.py         # 影片 + 音訊 + 抽影格 + 圖片轉影片
 │   ├── image.py         # 圖片
 │   ├── pdf.py           # PDF
 │   ├── ebook.py         # CBZ / EPUB
-│   └── probe.py         # 媒體資訊
+│   ├── document.py      # Markdown / HTML / DOCX / Office
+│   ├── data.py          # CSV / JSON / XLSX / YAML / TOML
+│   ├── subtitle.py      # SRT / VTT / ASS
+│   ├── font.py          # TTF / OTF / WOFF / WOFF2
+│   ├── archive.py       # ZIP / tar.gz
+│   └── markup.py        # Markdown／HTML 共用工具
 ├── gui/
 │   ├── main_window.py
 │   ├── theme.py         # 深色 / 淺色 QSS
@@ -108,10 +122,12 @@ openconvert/
 | 轉換器 | 進度來源 |
 |---|---|
 | 影片 / 音訊 | FFmpeg `-progress pipe:1` 的 `out_time_us ÷ 總時長` |
+| 抽影格 / 圖片轉影片 | 同 FFmpeg（以總時長回報） |
 | 圖片 | 批次內第 n / 總數（單檔為 0 → 1） |
 | PDF 合併 / 抽頁 | 已處理頁數 ÷ 總頁數 |
-| PDF → 圖片 | 已渲染頁數 ÷ 總頁數 |
+| PDF → 圖片 / CBZ / 純文字 | 已處理頁數 ÷ 總頁數 |
 | EPUB / CBZ | 已處理頁面 ÷ 總頁面 |
+| 文件 / 資料 / 字幕 / 字型 / 壓縮 | 各階段的固定進度點（讀取 → 寫入 → 完成） |
 
 ## 輸出安全規則
 
@@ -130,6 +146,7 @@ openconvert/
 | `concurrency` | `int` | `2` | 同時轉換數量 |
 | `ffmpeg_path` | `str` / `null` | `null` | 自訂 ffmpeg 路徑 |
 | `ffprobe_path` | `str` / `null` | `null` | 自訂 ffprobe 路徑 |
+| `office_path` | `str` / `null` | `null` | 自訂 soffice 路徑 |
 | `keep_history` | `bool` | `true` | 是否寫入轉換紀錄 |
 | `play_sound` | `bool` | `true` | 完成時提示音 |
 | `last_format` | `str` | `"mp4"` | 上次使用的格式 |

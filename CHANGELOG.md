@@ -10,6 +10,44 @@
 - 轉換失敗後一鍵重試
 - 拖放排序與輸出檔名樣板
 - 影片裁剪與字幕嵌入
+- 掃描型 PDF 的離線 OCR
+
+## [0.2.0] - 2026-11-15
+
+「全能」版本：把可離線轉換的格式一次補齊，目標數從 20 個增加到 82 個，測試從 102 個增加到 169 個。
+
+### 新增
+
+- **新檔案類型**：文字（TXT／Markdown）、網頁（HTML）、Office 文件（DOCX／DOC／ODT／RTF／PPTX／PPT／ODP）、
+  試算表（XLSX／XLSM／XLS／ODS）、資料（CSV／TSV／JSON／YAML／TOML）、字幕（SRT／VTT／ASS／SSA）、字型（TTF／OTF／WOFF／WOFF2）。
+- **文件轉換**：Markdown ⇄ HTML、HTML／DOCX → 純文字或 Markdown、DOCX → HTML；
+  需要完整排版的目標（DOCX／MD／HTML／TXT／ODT／RTF／PPTX／ODP／XLSX／XLS／ODS → PDF 等）透過 **LibreOffice** 完成。
+- **資料轉換**：CSV／TSV／JSON／XLSX／YAML／TOML 互相轉換，可指定工作表。
+- **字幕轉換**：SRT／WebVTT／ASS 互轉，自動辨識 UTF-8／Big5／GB18030 等編碼。
+- **字型轉換**：TTF／OTF／WOFF／WOFF2 互轉（無損）。
+- **壓縮**：把佇列中的檔案打包成 ZIP 或 tar.gz（接受所有支援的類型）。
+- **圖片**：新增 AVIF、HEIC（pillow-heif）、APNG（保留動畫）；動畫 GIF／WebP／APNG 互轉會保留影格。
+- **PDF**：新增「PDF → 純文字」與「PDF → CBZ」。
+- **電子書**：新增「文字／Markdown／HTML → EPUB」（依標題分章並產生目錄）、「EPUB → 純文字」、「CBZ → PDF」。
+- **影片／音訊**：新增 M4V／FLV／WMV／OGV／TS 容器、M4B／AIFF／WMA／AC3 音訊、
+  「抽出影格（PNG）」與「圖片轉影片（MP4）」。
+- **LibreOffice 偵測**：與 FFmpeg 相同的外部引擎定位（設定頁顯示狀態、可指定路徑、缺少時只有 Office 目標失敗）。
+- **GUI**：新增影格率、工作表選項與 LibreOffice 設定卡。
+- **CLI**：新增 `--fps`、`--frame-seconds`、`--sheet`、`--office`。
+- **檔案資訊頁**：文字／資料／字幕顯示行數、字元數、編碼與預覽；字型顯示家族、樣式與字符數；Office 檔案顯示格式與內部項目數。
+
+### 修正
+
+- 動畫圖片在轉換前被 `convert()` 壓成單張，導致 GIF／APNG 動畫全部消失；改為動畫路徑不做色彩模式轉換。
+- ASS 輸出時斜體／粗體標籤內的大括號被自己的跳脫邏輯破壞；改為先跳脫原文再插入標籤。
+- EPUB → 純文字時把 `<title>` 當成內文；改為忽略 `<head>`。
+- 合併型目標的可用性判斷會誤擋「文字 → EPUB」（來源不是圖片時不該要求組員數量）。
+- `tar.gz` 目標遇到同名檔案時輸出 `archive.tar (1).gz`；改為 `archive (1).tar.gz`。
+
+### 授權
+
+- 新增的執行期相依全部為寬鬆授權（MIT／BSD）：python-docx、openpyxl、PyYAML、tomli-w、Markdown、
+  beautifulsoup4、markdownify、fonttools、brotli、pillow-heif。FFmpeg 與 LibreOffice 仍為**外部程式**，不內嵌。
 
 ## [0.1.0] - 2026-11-15
 
