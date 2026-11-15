@@ -12,9 +12,9 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -42,14 +42,14 @@ jobs:
 
       - name: 上傳 Release 附件
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: OpenConvert-*-windows-x64.zip
           generate_release_notes: true
 
       - name: 上傳建置產物（手動執行時）
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenConvert-windows-x64
           path: OpenConvert-*-windows-x64.zip

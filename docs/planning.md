@@ -183,7 +183,7 @@
 | GUI 實際操作 | 完成 | 離屏 Qt 平台啟動、加入檔案、PNG → JPEG 轉換成功；另以截圖檢視深色／淺色版面 |
 | 引擎手動驗證 | 完成 | 凍結版 CLI 實際轉出 JPEG、PDF → PNG、MP4 → MP3、圖片 → EPUB |
 | 打包版啟動 | 完成 | `dist/OpenConvert/OpenConvert.exe` 可啟動且不閃退（含 GUI 與 CLI 兩支執行檔） |
-| CI 重現 | 待執行 | workflow 已備妥，尚未推送遠端，第一次 push 後才會實際跑 |
+| CI 重現 | 完成 | [執行紀錄](https://github.com/oooxoxxx/OpenConvert/actions/runs/43669505859)：Linux（3.10／3.13）、macOS、Windows 測試與 Windows 打包共 5 個 job 全數通過 |
 
 尚未完成（刻意留到後續版本）：安裝程式（MSI／`.app`／AppImage）、macOS 簽章與公證、
 失敗工作一鍵重試、輸出檔名樣板。
