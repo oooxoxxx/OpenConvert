@@ -105,6 +105,20 @@
   - 不引入 `unoconv` / `docx2pdf`（前者需常駐服務，後者依賴 Word／COM）。
 - **掃描型 PDF 的 OCR**：不在支援範圍（需再引入 Tesseract 等引擎，體積與平台複雜度高）。
 
+### 2.7b 自足化：內附 FFmpeg 與 LibreOffice（0.3.0）
+
+- **目標**：使用者拿到執行檔後，電腦上不需要先安裝任何東西就能完整轉換。
+- **取捨**：H.264（MP4／MKV／MOV…）需要 FFmpeg 的 `libx264`，而那是 GPL 元件。
+  為了「選了就能播」的品質底線，決定使用 **GPL 完整版**，並在發佈檔中附上授權與原始碼取得方式。
+  OpenConvert 自己的程式碼維持 MIT（FFmpeg 為獨立子程序，不連結）。
+- **LibreOffice**：以官方 MSI 的 `msiexec /a` 管理員安裝模式解壓縮，取得不註冊的可攜目錄；
+  轉換時使用獨立的 `-env:UserInstallation`，不與使用者已安裝的版本互相影響。
+- **可重現性**：`packaging/tools.lock.json` 固定引擎版本與 SHA-256。FFmpeg 指向 BtbN 有日期的
+  autobuild（資產不變），LibreOffice 指向官方穩定版 MSI（同版本檔案不變）。
+- **發行形態**：Lite（約 90 MB，不含引擎）與 Full（約 500 MB，完全自足）並行。
+- **尚未支援**：macOS 的 FFmpeg／LibreOffice 與各平台的 arm64；`fetch_tools.py` 會明確拒絕，
+  不會下載未經驗證的來源。
+
 ### 2.8 打包：PyInstaller
 
 - `--onedir` 啟動快、較不易被防毒誤判；`--onefile` 單檔方便但每次啟動要解壓。
@@ -147,6 +161,15 @@
 | 18 | 字幕 SRT／VTT／ASS 互轉 | 自製 | 已完成 |
 | 19 | 字型 TTF／OTF／WOFF／WOFF2 互轉 | fontTools + brotli | 已完成 |
 | 20 | ZIP／tar.gz 打包 | 標準庫 | 已完成 |
+
+## 3.2 第三階段功能範圍（0.3.0）
+
+| # | 功能 | 做法 | 狀態 |
+|---|---|---|---|
+| 21 | 完全自足（不依賴電腦上任何其他軟體） | 內附 FFmpeg + LibreOffice（Full 版本） | 已完成 |
+| 22 | 引擎下載與驗證工具 | `scripts/fetch_tools.py` + `packaging/tools.lock.json`（固定版本 + SHA-256） | 已完成 |
+| 23 | 內附版本優先 | 搜尋順序改為「指定 → 內附 → PATH → 常見位置」 | 已完成 |
+| 24 | Lite／Full 兩種發行 | 同一次建置，Full 額外放入 `tools/` | 已完成 |
 
 ### 明確排除（避免範圍失控）
 

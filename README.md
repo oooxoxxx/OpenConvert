@@ -6,7 +6,14 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.2.0（Beta）**，共 82 個目標格式，已通過 169 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.3.0（Beta）**，共 82 個目標格式，已通過 185 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+
+有兩種下載：
+
+| 版本 | 大小 | 需要先安裝什麼 |
+| --- | --- | --- |
+| **Full（自足）** | 較大 | **什麼都不用**。FFmpeg 與 LibreOffice 已內含，離線即可完成所有轉換。 |
+| **Lite** | 約 90 MB | 影片／音訊需要 FFmpeg；Office 文件轉 PDF 需要 LibreOffice。 |
 
 ---
 
@@ -37,11 +44,19 @@
 
 - Windows 10/11、macOS 12+ 或 Linux（X11／Wayland）
 - Python 3.10 以上（原始碼執行）；打包版不需要安裝 Python
-- **FFmpeg**：影片與音訊轉換、檔案資訊功能需要。
-- **LibreOffice**：Office 文件與試算表的進階轉換（例如 DOCX → PDF）需要。
 
-FFmpeg 與 LibreOffice 都是**外部程式，不隨本專案散布**；沒有安裝時，其餘格式仍可正常使用，
-只有需要它們的目標會回報明確訊息。
+**Full（自足）版本**：不需要安裝任何其他東西，FFmpeg 與 LibreOffice 都內含在 `tools/`。
+
+**Lite 版本**與從原始碼執行時，下列功能需要對應的外部程式（缺少時只有相關目標會失敗，
+其餘格式完全不受影響）：
+
+- **FFmpeg**：影片與音訊轉換、檔案資訊。
+- **LibreOffice**：Office 文件與試算表的進階轉換（例如 DOCX → PDF）。
+
+搜尋順序一律是：**設定頁指定的路徑 → 安裝包內附的 `tools/` → 系統 PATH → 常見安裝位置**，
+因此 Full 版本不會被電腦上其他版本影響。
+
+打包與自足版本的建置方式見 [`docs/packaging.md`](docs/packaging.md)。
 
 ### FFmpeg／LibreOffice 安裝
 
@@ -56,16 +71,23 @@ brew install --cask libreoffice
 sudo apt install ffmpeg libreoffice
 ```
 
-本程式依下列順序尋找 FFmpeg，找不到時「設定」頁會顯示狀態並允許手動指定：
+兩個引擎的搜尋順序相同，找不到時「設定」頁會顯示狀態並允許手動指定：
 
 1. 「設定」頁指定的路徑
-2. 程式目錄下的 `tools/`（可攜式擺放 `ffmpeg.exe`／`ffprobe.exe`）
+2. **安裝包內附的 `tools/`**（Full 版本；Lite 版本也可自行放入）
 3. 系統 `PATH`
-4. 常見安裝位置（`C:\ffmpeg\bin`、Chocolatey、WinGet Links 等）
-5. WinGet Packages 目錄掃描（處理安裝後 PATH 尚未更新的情況）
+4. 常見安裝位置
+   - FFmpeg：`C:\ffmpeg\bin`、Chocolatey、WinGet Links，以及 WinGet Packages 掃描
+   - LibreOffice：Windows `C:\Program Files\LibreOffice\program`、macOS `/Applications/LibreOffice.app`、Linux 發行套件
 
-LibreOffice 以相同方式尋找 `soffice`：設定頁指定路徑 → 系統 `PATH` →
-常見安裝位置（Windows `C:\Program Files\LibreOffice\program`、macOS `/Applications/LibreOffice.app`、Linux 發行套件）。
+想讓 Lite 版本也自足，只要把檔案放到這些位置即可：
+
+```
+tools/ffmpeg/ffmpeg.exe           # 或 tools/ffmpeg.exe、tools/bin/...
+tools/libreoffice/program/soffice.exe
+```
+
+或直接執行 `python scripts/fetch_tools.py --dest tools` 自動下載並驗證。
 
 ## 安裝
 
@@ -160,7 +182,7 @@ openconvert-cli probe clip.mp4
 
 ```powershell
 pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m pytest -q        # 169 tests
+.venv\Scripts\python.exe -m pytest -q        # 185 tests
 .venv\Scripts\ruff.exe check .               # lint
 .venv\Scripts\ruff.exe format --check .      # 格式檢查
 ```
@@ -182,8 +204,16 @@ pip install -e ".[dev]"
 pyinstaller packaging\openconvert.spec --noconfirm
 ```
 
-產物位於 `dist/OpenConvert/`（`--onedir`，啟動較快、也方便使用者把 `ffmpeg.exe` 放進 `tools/`），
-內含圖形介面 `OpenConvert.exe` 與命令列 `OpenConvertCLI.exe`。建置細節見 [`docs/packaging.md`](docs/packaging.md)。
+產物位於 `dist/OpenConvert/`（`--onedir`），內含圖形介面 `OpenConvert.exe` 與命令列 `OpenConvertCLI.exe`。
+
+要產生**自足（Full）**版本，在建置後把引擎放進產物即可：
+
+```powershell
+python scripts\fetch_tools.py --dest dist\OpenConvert\tools
+```
+
+`fetch_tools.py` 會依 `packaging/tools.lock.json` 下載固定版本的 FFmpeg 與 LibreOffice、
+**驗證 SHA-256**、解壓縮，並產生 `tools/THIRD-PARTY-NOTICES.txt`。建置細節見 [`docs/packaging.md`](docs/packaging.md)。
 
 ## 專案結構
 
@@ -218,11 +248,18 @@ scripts/        # 開發輔助工具（截圖預覽）
 | fonttools | MIT | 字型格式轉換 |
 | brotli | MIT | WOFF2 壓縮 |
 | platformdirs | MIT | 跨平台設定路徑 |
-| FFmpeg | LGPL/GPL（**外部程式**） | 影片、音訊編碼與探測 |
-| LibreOffice | MPL-2.0（**外部程式**） | Office 文件排版與轉換 |
+| FFmpeg | **GPL-3.0-or-later** | 影片、音訊編碼與探測 |
+| LibreOffice | **MPL-2.0** | Office 文件排版與轉換 |
 
-FFmpeg 與 LibreOffice **不內嵌**於本專案，由使用者自行安裝；因此本專案的 MIT 授權不會被它們的授權污染。
-若你散布包含 FFmpeg 或 LibreOffice 的組合包，需自行遵守其授權條款。
+**FFmpeg 與 LibreOffice 不與本專案連結**，都是以獨立子程序呼叫：
+
+- **Lite 版本**不包含它們，由使用者自行安裝。
+- **Full 版本**把它們放在 `tools/` 一起散布。FFmpeg 使用的是含 `libx264`／`libx265` 的 GPL 建置，
+  因此 Full 版本含有 GPL 元件；對應的來源與授權資訊會寫入 `tools/THIRD-PARTY-NOTICES.txt`
+  （FFmpeg 原始碼：<https://ffmpeg.org/download.html>，建置腳本：<https://github.com/BtbN/FFmpeg-Builds>）。
+- OpenConvert 本身的程式碼維持 **MIT**。
+
+若你要再散布 Full 版本，請一併保留上述授權聲明。
 
 ## 貢獻
 

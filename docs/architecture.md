@@ -147,6 +147,25 @@ openconvert/
 | `ffmpeg_path` | `str` / `null` | `null` | 自訂 ffmpeg 路徑 |
 | `ffprobe_path` | `str` / `null` | `null` | 自訂 ffprobe 路徑 |
 | `office_path` | `str` / `null` | `null` | 自訂 soffice 路徑 |
+
+## 隨附引擎（自足版本）
+
+打包後的 `tools/` 目錄會優先於系統安裝的版本：
+
+```
+dist/OpenConvert/
+  OpenConvert.exe
+  OpenConvertCLI.exe
+  tools/
+    ffmpeg/{ffmpeg.exe,ffprobe.exe}     # Full 版本內附
+    libreoffice/program/soffice.exe     # Full 版本內附
+    THIRD-PARTY-NOTICES.txt
+```
+
+`core/resources.py` 的 `app_dir()` 在打包後是執行檔所在目錄、從原始碼執行時是專案根目錄，
+因此 `tools/` 的位置在兩種情境下一致。建置期由 `scripts/fetch_tools.py` 依
+`packaging/tools.lock.json` 下載並以 SHA-256 驗證。`FFmpegTools.bundled` 與 `OfficeTools.bundled`
+會記錄是否來自內附目錄，設定頁據此顯示「（內附）」。
 | `keep_history` | `bool` | `true` | 是否寫入轉換紀錄 |
 | `play_sound` | `bool` | `true` | 完成時提示音 |
 | `last_format` | `str` | `"mp4"` | 上次使用的格式 |

@@ -11,6 +11,39 @@
 - 拖放排序與輸出檔名樣板
 - 影片裁剪與字幕嵌入
 - 掃描型 PDF 的離線 OCR
+- macOS／Linux 的 Full（自足）版本
+
+## [0.3.0] - 2026-11-16
+
+「完全自足」版本：推出內含外部引擎的 **Full** 版本，電腦上不需要先安裝 FFmpeg 或 LibreOffice
+也能完整轉換；原本的 **Lite** 版本（約 90 MB）繼續提供。測試 171 → 185 個。
+
+### 新增
+
+- **Full 版本（自足）**：安裝包內附 FFmpeg 與 LibreOffice，離線即可完成影片、音訊與 Office 排版轉換。
+- **建置工具 `scripts/fetch_tools.py`**：依 `packaging/tools.lock.json` 的固定版本與 SHA-256
+  下載引擎、驗證雜湊、解壓縮並放進 `tools/`。
+- **`packaging/tools.lock.json`**：FFmpeg（BtbN GPL 版，含 libx264／libx265，pin 到有日期的 autobuild）
+  與 LibreOffice（官方 MSI，pin 版本 26.2.7）的下載來源與雜湊。
+- **尋找順序**：兩個引擎都改為「使用者指定 → **安裝包內附** → 系統 PATH → 常見安裝位置」，
+  內附版本一律優先，不受電腦上其他版本影響。
+- **設定頁**：FFmpeg 與 LibreOffice 狀態會標示「（內附）」。
+- **隨附授權聲明**：打包時自動產生 `tools/THIRD-PARTY-NOTICES.txt`（FFmpeg GPL、LibreOffice MPL）。
+- **Release 流程**：同時產出 Lite 與 Full 兩個 ZIP，並在打包後驗證 Full 內含引擎。
+
+### 變更
+
+- `app_dir()` 從原始碼執行時改為回傳**專案根目錄**（原本是套件目錄），讓 `tools/` 的位置
+  在原始碼與打包兩種情境下語意一致。
+- `FFmpegTools` 與 `OfficeTools` 新增 `bundled` 欄位，用來區分內附與系統版本。
+- LibreOffice 無介面轉換額外加上 `--nofirststartwizard`，首次啟動更穩定。
+
+### 授權
+
+- **FFmpeg 為 GPL-3.0-or-later**（含 libx264／libx265），隨 Full 版本散布；對應原始碼與建置腳本
+  取得方式已寫入 `tools/THIRD-PARTY-NOTICES.txt`。**LibreOffice 為 MPL-2.0**。
+- OpenConvert 本身的原始碼仍為 MIT；FFmpeg 與 LibreOffice 都是獨立程式（以子程序呼叫），
+  不與本專案連結。
 
 ## [0.2.0] - 2026-11-15
 

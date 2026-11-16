@@ -3,6 +3,10 @@
 本文件由 `openconvert/core/targets.py` 的宣告整理而成，`openconvert-cli formats` 會列出同一份清單。
 若兩者不一致，以程式碼為準。
 
+需要外部引擎的目標只有兩類：**FFmpeg**（影片、音訊）與 **LibreOffice**（Office 排版轉換）。
+下載 **Full（自足）版本**時兩者都已內含，不需要另外安裝；**Lite 版本**則需要自行安裝，
+或在 `tools/` 放入對應的執行檔（搜尋順序：設定頁指定 → 內附 `tools/` → 系統 PATH → 常見安裝位置）。
+
 ## 來源檔案
 
 | 類型 | 副檔名 |
