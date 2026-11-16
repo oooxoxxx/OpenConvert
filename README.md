@@ -12,7 +12,7 @@
 
 | 版本 | 大小 | 需要先安裝什麼 |
 | --- | --- | --- |
-| **Full（自足）** | 約 0.5–0.7 GB | **什麼都不用**。FFmpeg 與 LibreOffice 已內含，離線即可完成所有轉換。 |
+| **Full（自足）** | 約 0.75 GB | **什麼都不用**。FFmpeg 與 LibreOffice 已內含，離線即可完成所有轉換。 |
 | **Lite** | 約 90 MB | 影片／音訊需要 FFmpeg；Office 文件轉 PDF 需要 LibreOffice。 |
 
 ---

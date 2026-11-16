@@ -55,7 +55,7 @@ Full 版本把 FFmpeg 與 LibreOffice 放進 `tools/`，使用者完全不需要
 | | Lite | Full |
 | --- | --- | --- |
 | `tools/` | 無 | FFmpeg（GPL 版，含 libx264／libx265）+ LibreOffice |
-| ZIP 大小 | 約 90 MB | 約 0.5–0.7 GB |
+| ZIP 大小 | 約 90 MB | 約 0.75 GB |
 | 需要先安裝 | FFmpeg／LibreOffice | 什麼都不用 |
 
 建置方式（在 PyInstaller 之後）：
