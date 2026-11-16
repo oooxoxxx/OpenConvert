@@ -36,15 +36,40 @@ jobs:
       - name: PyInstaller
         run: pyinstaller packaging/openconvert.spec --noconfirm
 
-      - name: 打包 ZIP
+      - name: 打包 Lite（需要自備 FFmpeg／LibreOffice）
         run: Compress-Archive -Path dist/OpenConvert/* -DestinationPath "OpenConvert-$env:VERSION-windows-x64.zip"
+        shell: pwsh
+
+      - name: 下載並內嵌引擎（FFmpeg GPL 版 + LibreOffice）
+        run: python scripts/fetch_tools.py --dest dist/OpenConvert/tools
+        env:
+          PYTHONUTF8: "1"
+
+      - name: 打包 Full（完全自足）
+        run: Compress-Archive -Path dist/OpenConvert/* -DestinationPath "OpenConvert-$env:VERSION-windows-x64-full.zip"
+        shell: pwsh
+
+      - name: 驗證 Full 內含引擎
+        run: |
+          $missing = @()
+          foreach ($path in @(
+            "dist/OpenConvert/tools/ffmpeg/ffmpeg.exe",
+            "dist/OpenConvert/tools/ffmpeg/ffprobe.exe",
+            "dist/OpenConvert/tools/libreoffice/program/soffice.exe"
+          )) {
+            if (-not (Test-Path $path)) { $missing += $path }
+          }
+          if ($missing.Count -gt 0) {
+            throw "Full 版本缺少：$($missing -join ', ')"
+          }
+          dist\OpenConvert\OpenConvertCLI.exe --version
         shell: pwsh
 
       - name: 上傳 Release 附件
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          files: OpenConvert-*-windows-x64.zip
+          files: OpenConvert-*-windows-x64*.zip
           generate_release_notes: true
 
       - name: 上傳建置產物（手動執行時）
@@ -52,5 +77,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: OpenConvert-windows-x64
-          path: OpenConvert-*-windows-x64.zip
+          path: OpenConvert-*-windows-x64*.zip
           if-no-files-found: error

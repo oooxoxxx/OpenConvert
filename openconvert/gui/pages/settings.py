@@ -322,7 +322,8 @@ class SettingsPage(QWidget):
             version = version_of(self._tools.ffmpeg) or "FFmpeg"
             short = version.split(" Copyright")[0]
             color = "#3fb950"
-            self._ffmpeg_status.setText(f"● 已找到 FFmpeg　{short}")
+            origin = "（內附）" if self._tools.bundled else ""
+            self._ffmpeg_status.setText(f"● 已找到 FFmpeg{origin}　{short}")
         else:
             color = "#d29922"
             self._ffmpeg_status.setText("● 找不到 FFmpeg。影片與音訊轉換目前無法使用。")
@@ -335,7 +336,8 @@ class SettingsPage(QWidget):
             version = office_version(tools.soffice) or "LibreOffice"
             short = version.split(" Copyright")[0]
             color = "#3fb950"
-            self._office_status.setText(f"● 已找到 LibreOffice　{short}")
+            origin = "（內附）" if tools.bundled else ""
+            self._office_status.setText(f"● 已找到 LibreOffice{origin}　{short}")
         else:
             color = "#d29922"
             self._office_status.setText("● 找不到 LibreOffice。Office 文件轉換目前無法使用。")

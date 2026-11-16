@@ -32,6 +32,7 @@ def _exe(name: str) -> str:
 class FFmpegTools:
     ffmpeg: Path | None = None
     ffprobe: Path | None = None
+    bundled: bool = False
 
     @property
     def available(self) -> bool:
@@ -40,6 +41,17 @@ class FFmpegTools:
     @property
     def probing_available(self) -> bool:
         return self.ffprobe is not None
+
+
+def is_bundled(path: Path | None) -> bool:
+    """判斷某個執行檔是否來自安裝包內附的 tools/。"""
+    if path is None:
+        return False
+    try:
+        bundled_root = tools_dir().resolve()
+        return bundled_root in path.resolve().parents
+    except OSError:  # pragma: no cover - 路徑無法解析時保守回傳 False
+        return False
 
 
 def _candidates(name: str) -> Iterable[Path]:
@@ -98,9 +110,11 @@ def locate(name: str, override: str | None = None) -> Path | None:
 
 
 def discover(ffmpeg_override: str | None = None, ffprobe_override: str | None = None) -> FFmpegTools:
+    ffmpeg = locate("ffmpeg", ffmpeg_override)
     return FFmpegTools(
-        ffmpeg=locate("ffmpeg", ffmpeg_override),
+        ffmpeg=ffmpeg,
         ffprobe=locate("ffprobe", ffprobe_override),
+        bundled=is_bundled(ffmpeg),
     )
 
 

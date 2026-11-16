@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "note": "外部引擎的固定下載來源。ffmpeg 為 GPL 完整版（BtbN，含 libx264/libx265）；LibreOffice 為官方 MSI。sha256 由 scripts/fetch_tools.py --update-lock 產生。",
+  "engines": {
+    "ffmpeg": {
+      "license": "GPL-3.0-or-later（含 libx264/libx265）",
+      "homepage": "https://ffmpeg.org/",
+      "source": "https://github.com/BtbN/FFmpeg-Builds",
+      "targets": {
+        "windows-x64": {
+          "url": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-15-12-40/ffmpeg-n9.0.2-57-gd838f9f9ae-win64-gpl-9.0.zip",
+          "sha256": "11b387a88ad24ee6d78bae7d24a2417834737e6ac00f0a36ca67fead1e924eff",
+          "size": 194990151,
+          "archive": "zip",
+          "version": "n9.0.2-win64-gpl-9.0"
+        },
+        "linux-x64": {
+          "url": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-15-12-40/ffmpeg-n9.0.2-57-gd838f9f9ae-linux64-gpl-9.0.tar.xz",
+          "sha256": "72836132863e0d40e2af74a8ef59c32b10771aed0c8540b634fb77db2e6e3ae2",
+          "size": 152700372,
+          "archive": "tar.xz",
+          "version": "n9.0.2-linux64-gpl-9.0"
+        }
+      }
+    },
+    "libreoffice": {
+      "license": "MPL-2.0",
+      "homepage": "https://www.libreoffice.org/",
+      "source": "https://download.documentfoundation.org/libreoffice/stable/",
+      "targets": {
+        "windows-x64": {
+          "url": "https://download.documentfoundation.org/libreoffice/stable/26.2.7/win/x86_64/LibreOffice_26.2.7_Win_x86-64.msi",
+          "sha256": "480fecf759fc6393bd614fbf43753eb95a8198fc1a065d41b727e3b664cd1e59",
+          "size": 373121024,
+          "archive": "msi",
+          "version": "26.2.7"
+        }
+      }
+    }
+  }
+}

@@ -25,10 +25,14 @@ def bundle_dir() -> Path:
 
 
 def app_dir() -> Path:
-    """應用程式所在目錄（可寫資源、隨附工具放這裡）。"""
+    """應用程式所在目錄（可寫資源、隨附工具放這裡）。
+
+    打包後是執行檔所在目錄（``dist/OpenConvert/``）；從原始碼執行時是
+    專案根目錄，這樣 ``tools/`` 的位置在兩種情境下語意一致。
+    """
     if is_frozen():
         return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parents[2]
 
 
 def tools_dir() -> Path:

@@ -59,10 +59,15 @@ Desktop.ini
 .DS_Store
 *.lnk
 
-# 本專案產生的暫存
+# 隨附工具（使用者自行放入，或建置時由 scripts/fetch_tools.py 下載）
 tools/ffmpeg.exe
 tools/ffprobe.exe
 tools/ffmpeg/
+tools/libreoffice/
+tools/LibreOffice/
+tools/soffice/
+tools/THIRD-PARTY-NOTICES.txt
+.cache/
 *.log
 
 # 測試產物
