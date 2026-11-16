@@ -46,6 +46,9 @@ def _bundled_candidates() -> Iterable[Path]:
         yield local / "soffice" / "program" / "soffice.exe"
     elif sys.platform == "darwin":
         yield local / "libreoffice" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
+        yield local / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
+        # 也接受手動放入的 program/ 擺法，方便使用者自行移植
+        yield local / "libreoffice" / "program" / "soffice"
     else:
         yield local / "libreoffice" / "program" / "soffice"
 
