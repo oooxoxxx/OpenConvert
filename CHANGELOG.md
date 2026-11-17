@@ -10,8 +10,42 @@
 - 轉換失敗後一鍵重試
 - 拖放排序與輸出檔名樣板
 - 影片裁剪與字幕嵌入
-- 掃描型 PDF 的離線 OCR
-- macOS／Linux 的 Full（自足）版本
+- 掃描型 PDF 的離線 OCR（可做成模組）
+- macOS／Linux 的引擎模組
+
+## [0.4.0] - 2026-11-17
+
+**完全模組化**：引擎不再內附，改為「需要什麼下載什麼」，全部從 GitHub 取得並以 SHA-256 驗證。
+測試 185 → 192 個。
+
+### 新增
+
+- **引擎模組管理 `core/modules.py`**：讀取 `openconvert/modules/manifest.json`、
+  下載（有進度、可取消）、SHA-256 驗證、解壓（ZIP／tar.xz／MSI）、安裝、狀態查詢與移除。
+- **模組清單 `openconvert/modules/manifest.json`**：每個模組的用途、授權、各平台下載網址、
+  SHA-256 與大小。下載來源是**我們自己的 GitHub Release 資產**（`engines-v1` 標籤）。
+- **設定頁「引擎模組」卡片**：顯示每個模組的狀態／大小／授權，可下載（含進度條）、移除。
+- **轉換時按需詢問**：選了需要引擎的格式但尚未安裝時，會詢問是否現在下載，下載完成後自動繼續。
+- **CLI**：`openconvert modules list|install <id>|remove <id>`；`convert` 在缺少引擎時會提示安裝指令。
+- **安裝位置**：優先程式旁的 `tools/`（可攜式）；不可寫時退回到使用者資料夾 `engines/`。
+- **授權聲明自動產生**：安裝模組後寫入 `tools/THIRD-PARTY-NOTICES.txt`。
+- **`scripts/fetch_tools.py`**：改為包裝模組管理核心，並新增 `--collect`（收集引擎資產供發佈）與 `--list`。
+- **`engines.yml` workflow**：手動執行，把引擎資產上傳到 `engines-v1` Release（Windows 與 Linux）。
+
+### 變更
+
+- **移除 Full（預先內附引擎）版本**；發佈只剩輕量 ZIP，引擎全部走模組下載。
+- `FFmpegTools.bundled`／`OfficeTools.bundled` 更名為 `managed`（由 OpenConvert 管理的引擎）。
+- 引擎搜尋順序改為：設定指定 → **已安裝模組／tools/** → 系統 PATH → 常見安裝位置。
+- LibreOffice 無介面轉換加上 `--nofirststartwizard`。
+- `resources.app_dir()` 從原始碼執行時回傳專案根目錄，讓 `tools/` 位置語意一致。
+
+### 授權
+
+- FFmpeg 模組為 **GPL-3.0-or-later**（含 libx264／libx265），LibreOffice 模組為 **MPL-2.0**；
+  兩者都重新寄放於本專案的 GitHub Release 資產，並附授權與原始碼取得方式。
+- OpenConvert 本身維持 **MIT**；引擎皆為獨立子程序，不與本專案連結。
+- 沒有安裝任何模組時，發佈檔**不含** GPL／MPL 元件。
 
 ## [0.3.0] - 2026-11-16
 

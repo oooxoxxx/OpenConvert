@@ -52,12 +52,15 @@ openconvert/
 │   ├── settings.py      # 使用者設定（JSON 持久化）
 │   ├── history.py       # JSONL 轉換紀錄
 │   ├── inspect.py       # 檔案資訊摘要
+│   ├── modules.py       # 引擎模組管理（下載、驗證、安裝、移除）
 │   ├── textio.py        # 文字編碼偵測與讀寫
 │   ├── sorting.py       # 檔名自然排序
 │   ├── imaging.py       # Pillow 引擎初始化（HEIF 註冊）
 │   ├── ffmpeg.py        # 尋找 ffmpeg/ffprobe、執行與進度解析
 │   ├── office.py        # 尋找 LibreOffice、無介面轉換
 │   └── resources.py     # 資源路徑（原始碼 / PyInstaller）
+├── modules/
+│   └── manifest.json    # 引擎模組清單（用途、授權、SHA-256）
 ├── converters/
 │   ├── base.py          # Converter 抽象基底 + ConvertContext
 │   ├── media.py         # 影片 + 音訊 + 抽影格 + 圖片轉影片
@@ -148,24 +151,28 @@ openconvert/
 | `ffprobe_path` | `str` / `null` | `null` | 自訂 ffprobe 路徑 |
 | `office_path` | `str` / `null` | `null` | 自訂 soffice 路徑 |
 
-## 隨附引擎（自足版本）
+## 引擎模組（模組化）
 
-打包後的 `tools/` 目錄會優先於系統安裝的版本：
+引擎不在發佈檔內，由 `core/modules.py` 按 `openconvert/modules/manifest.json` 管理：
 
 ```
-dist/OpenConvert/
-  OpenConvert.exe
-  OpenConvertCLI.exe
-  tools/
-    ffmpeg/{ffmpeg.exe,ffprobe.exe}     # Full 版本內附
-    libreoffice/program/soffice.exe     # Full 版本內附
-    THIRD-PARTY-NOTICES.txt
+manifest.json ── 讀取 ──► modules.install(id)
+                              │  下載（SHA-256 驗證、可取消）
+                              ▼
+tools/ffmpeg/{ffmpeg.exe,ffprobe.exe}      # 優先；不可寫時退回 user engines/
+tools/libreoffice/program/soffice.exe
+tools/THIRD-PARTY-NOTICES.txt              # 安裝後自動產生
 ```
 
-`core/resources.py` 的 `app_dir()` 在打包後是執行檔所在目錄、從原始碼執行時是專案根目錄，
-因此 `tools/` 的位置在兩種情境下一致。建置期由 `scripts/fetch_tools.py` 依
-`packaging/tools.lock.json` 下載並以 SHA-256 驗證。`FFmpegTools.bundled` 與 `OfficeTools.bundled`
-會記錄是否來自內附目錄，設定頁據此顯示「（內附）」。
+- `core/resources.py` 的 `module_search_dirs()` 回傳模組可能所在的位置，
+  `app_dir()` 在打包後是執行檔所在目錄、從原始碼執行時是專案根目錄，因此 `tools/` 位置一致。
+- 引擎搜尋順序：設定頁指定 → **模組／`tools/`** → 系統 PATH → 常見安裝位置。
+- `FFmpegTools.managed` 與 `OfficeTools.managed` 標示引擎是否由 OpenConvert 管理，
+  設定頁據此顯示「（模組）」。
+- GUI 的下載在 `QThread`（`gui/widgets/module_dialog.py`）執行，可取消；轉換頁在需要時
+  會以對話框詢問「要不要現在下載」，成功後自動繼續。
+- 發佈流程：`engines.yml` 把引擎資產上傳到 `engines-v1` Release；
+  應用程式 Release 只含主程式。
 | `keep_history` | `bool` | `true` | 是否寫入轉換紀錄 |
 | `play_sound` | `bool` | `true` | 完成時提示音 |
 | `last_format` | `str` | `"mp4"` | 上次使用的格式 |
