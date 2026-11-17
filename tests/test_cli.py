@@ -76,7 +76,8 @@ def test_modules_list_reports_status(capsys):
     output = capsys.readouterr().out
     assert "ffmpeg" in output
     assert "libreoffice" in output
-    assert "未安裝" in output
+    # 每個模組一定會標示「未安裝」或「此平台未提供」其中之一
+    assert ("未安裝" in output) or ("此平台未提供" in output)
 
 
 def test_modules_install_with_local_manifest(tmp_path: Path, monkeypatch, capsys):

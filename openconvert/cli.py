@@ -240,13 +240,16 @@ def _cmd_modules(args: argparse.Namespace) -> int:
     try:
         if command == "list":
             manifest = modules.load_manifest()
-            print(f"平台：{modules.platform_key()}　頻道：{manifest.get('channel', '?')}")
+            platform = modules.platform_key()
+            print(f"平台：{platform}　頻道：{manifest.get('channel', '?')}")
+            provided = 0
             for module_id in modules.module_ids():
                 spec = modules.get_module(module_id)
                 state = modules.status(module_id, base)
                 if spec is None:
                     print(f"  [此平台未提供] {module_id}")
                     continue
+                provided += 1
                 size = f"{spec.size / 1e6:.0f} MB" if spec.size else "?"
                 if state.installed:
                     print(
@@ -258,6 +261,9 @@ def _cmd_modules(args: argparse.Namespace) -> int:
                         f"  {module_id:12} {spec.label}\n"
                         f"               未安裝　大小：約 {size}　授權：{spec.license}"
                     )
+            if provided == 0:
+                print(f"\n此平台（{platform}）目前沒有提供任何引擎模組。")
+                print("可自行安裝系統版 FFmpeg／LibreOffice，或把執行檔放進 tools/。")
             return 0
 
         if command == "install":
