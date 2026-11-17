@@ -21,7 +21,7 @@ import tarfile
 import tempfile
 import zipfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -61,6 +61,8 @@ class ModuleSpec:
     sha256: str
     size: int
     archive: str
+    #: 上游原始網址；首次收集引擎資產時使用（鏡像 Release 還不存在）
+    origin_url: str = ""
 
 
 @dataclass
@@ -133,6 +135,7 @@ def get_module(module_id: str) -> ModuleSpec | None:
             sha256=str(target.get("sha256") or ""),
             size=int(target.get("size") or 0),
             archive=str(target.get("archive") or ""),
+            origin_url=str((target.get("origin") or {}).get("url") or target.get("origin_url") or ""),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ModuleError(f"模組「{module_id}」的清單資料不完整：{exc}") from exc
@@ -389,12 +392,25 @@ _INSTALLERS = {
 }
 
 
-def download_archive(module_id: str, *, cancelled: CancelledFn | None = None) -> Path:
-    """只下載並驗證模組壓縮檔（供發佈流程收集資產用），不安裝。"""
+def download_archive(
+    module_id: str,
+    *,
+    cancelled: CancelledFn | None = None,
+    use_origin: bool = False,
+) -> Path:
+    """只下載並驗證模組壓縮檔（供發佈流程收集資產用），不安裝。
+
+    ``use_origin=True`` 時從上游原始網址下載——首次建立引擎鏡像 Release 時，
+    manifest 指向的鏡像還不存在，必須先從上游取得。
+    """
     cancelled = cancelled or (lambda: False)
     spec = get_module(module_id)
     if spec is None:
         raise ModuleError(f"沒有「{module_id}」模組，或它沒有支援 {platform_key()} 的版本。")
+    if use_origin:
+        if not spec.origin_url:
+            raise ModuleError(f"模組「{module_id}」沒有設定上游來源（origin）。")
+        spec = replace(spec, url=spec.origin_url)
     return _download(spec, lambda *_args: None, cancelled)
 
 

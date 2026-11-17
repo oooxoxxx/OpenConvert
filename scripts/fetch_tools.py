@@ -82,8 +82,10 @@ def main(argv: list[str] | None = None) -> int:
                 if spec is None:
                     print(f"略過 {module_id}（此平台未提供）")
                     continue
-                print(f"收集 {module_id}：{spec.url}")
-                archive = modules.download_archive(module_id)
+                source = spec.origin_url or spec.url
+                print(f"收集 {module_id}：{source}")
+                # 收集時一律從上游取得；鏡像 Release 通常就是這個流程要建立的
+                archive = modules.download_archive(module_id, use_origin=bool(spec.origin_url))
                 shutil.copy2(archive, target / archive.name)
                 print(f"  → {target / archive.name}（{_human(archive.stat().st_size)}，雜湊驗證通過）")
             print(f"\n已收集到 {target.resolve()}")

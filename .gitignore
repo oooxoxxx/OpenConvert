@@ -68,6 +68,7 @@ tools/LibreOffice/
 tools/soffice/
 tools/THIRD-PARTY-NOTICES.txt
 .cache/
+assets/
 *.log
 
 # 測試產物
