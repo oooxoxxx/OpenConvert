@@ -58,7 +58,7 @@ def print_list() -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="下載／安裝引擎模組（開發與發佈用）")
     parser.add_argument("--dest", default=None, help="安裝基底目錄（預設依 resources 自動決定）")
-    parser.add_argument("--only", default=None, help="只處理指定模組，例如 ffmpeg")
+    parser.add_argument("--only", default=None, help="只處理指定模組，例如 ffmpeg；all 表示全部")
     parser.add_argument("--collect", default=None, help="只下載＋驗證並收集到指定資料夾（發佈用）")
     parser.add_argument("--list", action="store_true", help="列出清單與狀態後結束")
     args = parser.parse_args(argv)
@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             return print_list()
 
         ids = modules.module_ids()
-        if args.only:
+        if args.only and args.only.lower() != "all":
             if args.only not in ids:
                 print(f"錯誤：沒有「{args.only}」模組。可用：{', '.join(ids)}", file=sys.stderr)
                 return 1
