@@ -1,0 +1,59 @@
+name: 引擎資產（engines-v1）
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "引擎 Release 標籤"
+        default: "engines-v1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    name: 收集 ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+          - platform: linux-x64
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 安裝相依
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: 下載並驗證引擎（SHA-256）
+        run: python scripts/fetch_tools.py --collect assets --only ${{ matrix.platform == 'windows-x64' && 'all' || 'ffmpeg' }}
+        env:
+          PYTHONUTF8: "1"
+
+      - name: 上傳到引擎 Release
+        run: |
+          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" \
+            --title "引擎資產 ${{ inputs.tag }}" \
+            --notes "OpenConvert 引擎模組的下載來源（SHA-256 見 openconvert/modules/manifest.json）。" || true
+          gh release upload "${{ inputs.tag }}" assets/* --repo "${{ github.repository }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: 上傳建置產物
+        uses: actions/upload-artifact@v7
+        with:
+          name: engines-${{ matrix.platform }}
+          path: assets/*
+          if-no-files-found: error

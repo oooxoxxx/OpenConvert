@@ -25,8 +25,9 @@ binaries = collect_dynamic_libs("pypdfium2_raw")
 binaries += collect_dynamic_libs("pillow_heif")
 binaries += collect_dynamic_libs("brotli")
 
-# python-docx 需要內建的預設範本檔案
+# python-docx 需要內建的預設範本檔案；引擎模組清單要隨程式散布
 datas = collect_data_files("docx")
+datas += [(str(ROOT / "openconvert" / "modules" / "manifest.json"), "openconvert/modules")]
 
 # Markdown 的擴充是以模組路徑動態載入，PyInstaller 靜態分析看不到
 HIDDEN_IMPORTS = [

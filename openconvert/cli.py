@@ -15,6 +15,7 @@ from pathlib import Path
 from . import APP_NAME, __version__
 from .converters import get_converter
 from .converters.base import ConvertContext
+from .core import modules
 from .core.errors import ConversionCancelled, OpenConvertError
 from .core.ffmpeg import discover
 from .core.job import Job
@@ -54,6 +55,21 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--ffprobe")
 
     sub.add_parser("formats", help="列出所有支援的目標格式")
+
+    modules_parser = sub.add_parser("modules", help="管理引擎模組（FFmpeg／LibreOffice）")
+    modules_sub = modules_parser.add_subparsers(dest="modules_command")
+    modules_list = modules_sub.add_parser("list", help="列出模組與安裝狀態")
+    modules_list.add_argument(
+        "--dest", default=None, help="安裝基底目錄（預設為程式旁的 tools/，不可寫時用使用者資料夾）"
+    )
+    modules_install = modules_sub.add_parser("install", help="下載並安裝模組")
+    modules_install.add_argument("module", help="模組 id，例如 ffmpeg、libreoffice")
+    modules_install.add_argument(
+        "--dest", default=None, help="安裝基底目錄（預設為程式旁的 tools/，不可寫時用使用者資料夾）"
+    )
+    modules_remove = modules_sub.add_parser("remove", help="移除已安裝的模組")
+    modules_remove.add_argument("module", help="模組 id")
+    modules_remove.add_argument("--dest", default=None, help="安裝基底目錄")
     return parser
 
 
@@ -97,13 +113,20 @@ def _cmd_convert(args: argparse.Namespace) -> int:
 
     tools = discover(args.ffmpeg, args.ffprobe)
     if spec.needs_ffmpeg and not tools.available:
-        print("找不到 FFmpeg，無法轉換影片或音訊。", file=sys.stderr)
+        print(
+            "找不到 FFmpeg，無法轉換影片或音訊。\n"
+            "  可執行：openconvert modules install ffmpeg\n"
+            "  或以 --ffmpeg 指定執行檔，或自行安裝 FFmpeg。",
+            file=sys.stderr,
+        )
         return 3
 
     office_tools = office_discover(args.office)
     if spec.needs_office and not office_tools.available:
         print(
-            "找不到 LibreOffice，無法轉換 Office 文件。請安裝 LibreOffice，或以 --office 指定 soffice 路徑。",
+            "找不到 LibreOffice，無法轉換 Office 文件。\n"
+            "  可執行：openconvert modules install libreoffice\n"
+            "  或以 --office 指定 soffice 路徑，或自行安裝 LibreOffice。",
             file=sys.stderr,
         )
         return 3
@@ -211,6 +234,68 @@ def _cmd_probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_modules(args: argparse.Namespace) -> int:
+    command = args.modules_command or "list"
+    base = Path(args.dest).resolve() if getattr(args, "dest", None) else None
+    try:
+        if command == "list":
+            manifest = modules.load_manifest()
+            print(f"平台：{modules.platform_key()}　頻道：{manifest.get('channel', '?')}")
+            for module_id in modules.module_ids():
+                spec = modules.get_module(module_id)
+                state = modules.status(module_id, base)
+                if spec is None:
+                    print(f"  [此平台未提供] {module_id}")
+                    continue
+                size = f"{spec.size / 1e6:.0f} MB" if spec.size else "?"
+                if state.installed:
+                    print(
+                        f"  {module_id:12} {spec.label}\n"
+                        f"               已安裝（{state.version}）　位置：{state.install_dir}"
+                    )
+                else:
+                    print(
+                        f"  {module_id:12} {spec.label}\n"
+                        f"               未安裝　大小：約 {size}　授權：{spec.license}"
+                    )
+            return 0
+
+        if command == "install":
+            spec = modules.get_module(args.module)
+            if spec is None:
+                print(f"沒有「{args.module}」模組，或此平台沒有提供。", file=sys.stderr)
+                return 2
+
+            print(f"安裝 {args.module}（{spec.label}，約 {spec.size / 1e6:.0f} MB，{spec.license}）")
+
+            def on_progress(fraction: float, message: str) -> None:
+                filled = int(fraction * 24)
+                bar = "█" * filled + "·" * (24 - filled)
+                print(f"\r  [{bar}] {fraction * 100:3.0f}%  {message}", end="", flush=True)
+
+            path = modules.install(args.module, progress=on_progress, base=base)
+            print("\r" + " " * 110 + "\r", end="")
+            print(f"  ✓ 已安裝到 {path}")
+            notices = modules.write_notices(base or modules.target_base(), base)
+            if notices:
+                print(f"  ✓ 授權聲明：{notices}")
+            return 0
+
+        if command == "remove":
+            if modules.remove(args.module, base):
+                print(f"已移除 {args.module}。")
+            else:
+                print(f"{args.module} 目前沒有安裝。")
+            return 0
+    except ConversionCancelled:
+        print("\n  ✗ 已取消", file=sys.stderr)
+        return 130
+    except OpenConvertError as exc:
+        print(f"錯誤：{exc.user_message}", file=sys.stderr)
+        return 1
+    return 2
+
+
 # --------------------------------------------------------------------------- 入口
 
 
@@ -243,6 +328,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_convert(args)
     if args.command == "probe":
         return _cmd_probe(args)
+    if args.command == "modules":
+        return _cmd_modules(args)
 
     parser.print_help()
     return 2

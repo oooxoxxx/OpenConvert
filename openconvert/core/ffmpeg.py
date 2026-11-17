@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .errors import ConversionCancelled, ConversionError, FFmpegNotFoundError
-from .resources import tools_dir
+from .resources import module_search_dirs
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
@@ -32,7 +32,7 @@ def _exe(name: str) -> str:
 class FFmpegTools:
     ffmpeg: Path | None = None
     ffprobe: Path | None = None
-    bundled: bool = False
+    managed: bool = False
 
     @property
     def available(self) -> bool:
@@ -43,24 +43,30 @@ class FFmpegTools:
         return self.ffprobe is not None
 
 
-def is_bundled(path: Path | None) -> bool:
-    """判斷某個執行檔是否來自安裝包內附的 tools/。"""
+def is_managed(path: Path | None) -> bool:
+    """判斷某個執行檔是否由 OpenConvert 管理（``tools/`` 或使用者 ``engines/``）。"""
     if path is None:
         return False
     try:
-        bundled_root = tools_dir().resolve()
-        return bundled_root in path.resolve().parents
+        resolved = path.resolve()
     except OSError:  # pragma: no cover - 路徑無法解析時保守回傳 False
         return False
+    for base in module_search_dirs():
+        try:
+            if base.resolve() in resolved.parents:
+                return True
+        except OSError:  # pragma: no cover
+            continue
+    return False
 
 
 def _candidates(name: str) -> Iterable[Path]:
     exe = _exe(name)
-    local = tools_dir()
-    yield local / exe
-    yield local / "bin" / exe
-    for folder in ("ffmpeg", "ffmpeg/bin"):
-        yield local / folder / exe
+    for local in module_search_dirs():
+        yield local / exe
+        yield local / "bin" / exe
+        for folder in ("ffmpeg", "ffmpeg/bin"):
+            yield local / folder / exe
 
 
 def _search_path(name: str) -> Path | None:
@@ -114,7 +120,7 @@ def discover(ffmpeg_override: str | None = None, ffprobe_override: str | None = 
     return FFmpegTools(
         ffmpeg=ffmpeg,
         ffprobe=locate("ffprobe", ffprobe_override),
-        bundled=is_bundled(ffmpeg),
+        managed=is_managed(ffmpeg),
     )
 
 

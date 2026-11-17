@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import ConversionError
-from .resources import tools_dir
+from .resources import module_search_dirs
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
@@ -25,7 +25,7 @@ CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 @dataclass(frozen=True)
 class OfficeTools:
     soffice: Path | None = None
-    bundled: bool = False
+    managed: bool = False
 
     @property
     def available(self) -> bool:
@@ -36,21 +36,21 @@ class OfficeTools:
         return version_of(self.soffice)
 
 
-def _bundled_candidates() -> Iterable[Path]:
-    """安裝包內附的 LibreOffice（Full 版本）。"""
-    local = tools_dir()
-    if sys.platform == "win32":
-        yield local / "libreoffice" / "program" / "soffice.exe"
-        yield local / "libreoffice" / "LibreOffice" / "program" / "soffice.exe"
-        yield local / "LibreOffice" / "program" / "soffice.exe"
-        yield local / "soffice" / "program" / "soffice.exe"
-    elif sys.platform == "darwin":
-        yield local / "libreoffice" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
-        yield local / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
-        # 也接受手動放入的 program/ 擺法，方便使用者自行移植
-        yield local / "libreoffice" / "program" / "soffice"
-    else:
-        yield local / "libreoffice" / "program" / "soffice"
+def _managed_candidates() -> Iterable[Path]:
+    """由 OpenConvert 管理的 LibreOffice（模組安裝或手動放入 tools/engines）。"""
+    for local in module_search_dirs():
+        if sys.platform == "win32":
+            yield local / "libreoffice" / "program" / "soffice.exe"
+            yield local / "libreoffice" / "LibreOffice" / "program" / "soffice.exe"
+            yield local / "LibreOffice" / "program" / "soffice.exe"
+            yield local / "soffice" / "program" / "soffice.exe"
+        elif sys.platform == "darwin":
+            yield local / "libreoffice" / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
+            yield local / "LibreOffice.app" / "Contents" / "MacOS" / "soffice"
+            # 也接受手動放入的 program/ 擺法，方便使用者自行移植
+            yield local / "libreoffice" / "program" / "soffice"
+        else:
+            yield local / "libreoffice" / "program" / "soffice"
 
 
 def _candidate_paths() -> Iterable[Path]:
@@ -70,19 +70,25 @@ def _candidate_paths() -> Iterable[Path]:
                 yield Path(found)
 
 
-def is_bundled(path: Path | None) -> bool:
-    """判斷某個 soffice 是否來自安裝包內附的 tools/。"""
+def is_managed(path: Path | None) -> bool:
+    """判斷某個 soffice 是否由 OpenConvert 管理（tools/ 或使用者 engines/）。"""
     if path is None:
         return False
     try:
-        bundled_root = tools_dir().resolve()
-        return bundled_root in path.resolve().parents
+        resolved = path.resolve()
     except OSError:  # pragma: no cover - 路徑無法解析時保守回傳 False
         return False
+    for base in module_search_dirs():
+        try:
+            if base.resolve() in resolved.parents:
+                return True
+        except OSError:  # pragma: no cover
+            continue
+    return False
 
 
 def locate(override: str | None = None) -> Path | None:
-    """依序尋找：使用者指定 → 安裝包內附 → 系統 PATH → 常見安裝位置。"""
+    """依序尋找：使用者指定 → 已安裝模組／tools/ → 系統 PATH → 常見安裝位置。"""
     if override:
         candidate = Path(override).expanduser()
         if candidate.is_file():
@@ -90,7 +96,7 @@ def locate(override: str | None = None) -> Path | None:
         found = shutil.which(override)
         return Path(found) if found else None
 
-    for candidate in _bundled_candidates():
+    for candidate in _managed_candidates():
         if candidate.is_file():
             return candidate
 
@@ -105,7 +111,7 @@ def locate(override: str | None = None) -> Path | None:
 
 def discover(override: str | None = None) -> OfficeTools:
     found = locate(override)
-    return OfficeTools(soffice=found, bundled=is_bundled(found))
+    return OfficeTools(soffice=found, managed=is_managed(found))
 
 
 def version_of(binary: Path | None) -> str | None:
@@ -209,4 +215,4 @@ def _pick_output(outdir: Path, stem: str, ext: str) -> Path | None:
     return matches[0] if matches else None
 
 
-__all__ = ["OfficeTools", "convert_to", "discover", "is_bundled", "locate", "version_of"]
+__all__ = ["OfficeTools", "convert_to", "discover", "is_managed", "locate", "version_of"]

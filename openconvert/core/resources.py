@@ -36,8 +36,24 @@ def app_dir() -> Path:
 
 
 def tools_dir() -> Path:
-    """隨附外部工具的目錄（例如使用者自行放入的 ffmpeg.exe）。"""
+    """放置外部工具／引擎模組的目錄（``tools/``）。
+
+    預設在應用程式旁邊；若那個位置不可寫（例如安裝在 Program Files），
+    模組管理員會退回到 :func:`user_modules_dir`。
+    """
     return app_dir() / "tools"
+
+
+def user_modules_dir() -> Path:
+    """使用者層級的引擎模組目錄（程式目錄不可寫時的備援）。"""
+    from .settings import data_dir
+
+    return data_dir() / "engines"
+
+
+def module_search_dirs() -> tuple[Path, ...]:
+    """模組可能被安裝的位置，順序即優先順序。"""
+    return (tools_dir(), user_modules_dir())
 
 
 def find_asset(*parts: str) -> Path | None:

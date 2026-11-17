@@ -1,0 +1,49 @@
+{
+  "manifest_version": 1,
+  "channel": "engines-v1",
+  "repository": "oooxoxxx/OpenConvert",
+  "note": "引擎模組固定下載來源。所有檔案都以 SHA-256 驗證；FFmpeg 為 GPL-3.0-or-later（含 libx264／libx265），LibreOffice 為 MPL-2.0。授權與原始碼取得方式會寫入 tools/THIRD-PARTY-NOTICES.txt。",
+  "modules": {
+    "ffmpeg": {
+      "label": "FFmpeg（影片與音訊）",
+      "purpose": "影片與音訊轉換、抽出音軌、媒體資訊探測",
+      "license": "GPL-3.0-or-later（含 libx264／libx265）",
+      "homepage": "https://ffmpeg.org/",
+      "source": "https://github.com/BtbN/FFmpeg-Builds",
+      "source_page": "https://ffmpeg.org/download.html",
+      "targets": {
+        "windows-x64": {
+          "version": "n9.0.2-20261115",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/ffmpeg-n9.0.2-57-gd838f9f9ae-win64-gpl-9.0.zip",
+          "sha256": "11b387a88ad24ee6d78bae7d24a2417834737e6ac00f0a36ca67fead1e924eff",
+          "size": 194990151,
+          "archive": "zip"
+        },
+        "linux-x64": {
+          "version": "n9.0.2-20261115",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/ffmpeg-n9.0.2-57-gd838f9f9ae-linux64-gpl-9.0.tar.xz",
+          "sha256": "72836132863e0d40e2af74a8ef59c32b10771aed0c8540b634fb77db2e6e3ae2",
+          "size": 152700372,
+          "archive": "tar.xz"
+        }
+      }
+    },
+    "libreoffice": {
+      "label": "LibreOffice（Office 文件排版）",
+      "purpose": "DOCX／ODT／RTF／PPTX／XLSX 等轉成 PDF 或互轉",
+      "license": "MPL-2.0",
+      "homepage": "https://www.libreoffice.org/",
+      "source": "https://download.documentfoundation.org/libreoffice/stable/",
+      "source_page": "https://www.libreoffice.org/about-us/licenses/",
+      "targets": {
+        "windows-x64": {
+          "version": "26.2.7",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/LibreOffice_26.2.7_Win_x86-64.msi",
+          "sha256": "480fecf759fc6393bd614fbf43753eb95a8198fc1a065d41b727e3b664cd1e59",
+          "size": 373121024,
+          "archive": "msi"
+        }
+      }
+    }
+  }
+}

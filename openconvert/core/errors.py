@@ -34,6 +34,10 @@ class ConversionCancelled(OpenConvertError):
         super().__init__(message)
 
 
+class ModuleError(OpenConvertError):
+    """引擎模組的下載、驗證或安裝失敗。"""
+
+
 class FFmpegNotFoundError(OpenConvertError):
     """系統中找不到 FFmpeg / FFprobe。"""
 

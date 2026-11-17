@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -22,12 +23,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...core import modules
 from ...core.ffmpeg import FFmpegTools, discover, version_of
 from ...core.office import discover as discover_office
 from ...core.office import version_of as office_version
 from ...core.resources import tools_dir
 from ...core.settings import Settings, config_dir
 from ..utils import open_path
+from ..widgets.module_dialog import ModuleInstallThread
 from ..widgets.toast import Toast
 
 THEME_LABELS: tuple[tuple[str, str], ...] = (
@@ -88,6 +91,7 @@ class SettingsPage(QWidget):
         column.addWidget(self._appearance_card())
         column.addWidget(self._behaviour_card())
         column.addWidget(self._output_card())
+        column.addWidget(self._modules_card())
         column.addWidget(self._ffmpeg_card())
         column.addWidget(self._office_card())
         column.addWidget(self._privacy_card())
@@ -189,7 +193,7 @@ class SettingsPage(QWidget):
     def _ffmpeg_card(self) -> QWidget:
         frame, layout = self._card(
             "FFmpeg（影片與音訊）",
-            "OpenConvert 不內建 FFmpeg。若系統中找不到，圖片、PDF 與電子書功能仍可正常使用。",
+            "可以從上方「引擎模組」下載；也可以自行安裝後讓 OpenConvert 自動偵測。",
         )
 
         self._ffmpeg_status = QLabel()
@@ -235,10 +239,144 @@ class SettingsPage(QWidget):
         layout.addLayout(browse_row)
         return frame
 
+    def _modules_card(self) -> QWidget:
+        frame, layout = self._card(
+            "引擎模組",
+            "需要什麼下載什麼。所有下載都以 SHA-256 驗證，並放在程式旁的 tools/。",
+        )
+
+        self._module_rows: dict[str, dict[str, object]] = {}
+        for module_id in modules.module_ids():
+            row = QHBoxLayout()
+            row.setSpacing(10)
+
+            text = QVBoxLayout()
+            name = QLabel()
+            name.setWordWrap(True)
+            status = QLabel()
+            status.setObjectName("Muted")
+            status.setWordWrap(True)
+            text.addWidget(name)
+            text.addWidget(status)
+            row.addLayout(text, 1)
+
+            install_button = QPushButton("下載")
+            install_button.setObjectName("Ghost")
+            install_button.clicked.connect(lambda _=False, mid=module_id: self._install_module(mid))
+            remove_button = QPushButton("移除")
+            remove_button.setObjectName("Ghost")
+            remove_button.clicked.connect(lambda _=False, mid=module_id: self._remove_module(mid))
+            row.addWidget(install_button)
+            row.addWidget(remove_button)
+            layout.addLayout(row)
+
+            self._module_rows[module_id] = {
+                "name": name,
+                "status": status,
+                "install": install_button,
+                "remove": remove_button,
+            }
+
+        self._module_progress = QProgressBar()
+        self._module_progress.setRange(0, 1000)
+        self._module_progress.setValue(0)
+        self._module_progress.setTextVisible(False)
+        self._module_progress.setFixedHeight(8)
+        self._module_progress.hide()
+        layout.addWidget(self._module_progress)
+
+        self._module_status = QLabel()
+        self._module_status.setObjectName("Muted")
+        self._module_status.setWordWrap(True)
+        layout.addWidget(self._module_status)
+
+        self._module_thread: ModuleInstallThread | None = None
+        self._refresh_modules()
+        return frame
+
+    def _refresh_modules(self) -> None:
+        if not hasattr(self, "_module_rows"):
+            return
+        for module_id, widgets in self._module_rows.items():
+            spec = modules.get_module(module_id)
+            state = modules.status(module_id)
+            name: QLabel = widgets["name"]  # type: ignore[assignment]
+            status_label: QLabel = widgets["status"]  # type: ignore[assignment]
+            install_button: QPushButton = widgets["install"]  # type: ignore[assignment]
+            remove_button: QPushButton = widgets["remove"]  # type: ignore[assignment]
+
+            if spec is None:
+                name.setText(f"{module_id}（此平台未提供）")
+                status_label.setText("這個平台沒有固定的下載來源，可以自行安裝或放入 tools/。")
+                install_button.setEnabled(False)
+                remove_button.setEnabled(False)
+                continue
+
+            name.setText(f"{spec.label}")
+            if state.installed:
+                status_label.setText(f"已安裝　{state.version}　位置：{state.install_dir}")
+                install_button.setText("重新下載")
+                remove_button.setEnabled(True)
+            else:
+                size = f"{spec.size / 1e6:.0f} MB" if spec.size else "未知大小"
+                status_label.setText(f"未安裝　大小：約 {size}　授權：{spec.license}")
+                install_button.setText("下載")
+                remove_button.setEnabled(False)
+
+    def _install_module(self, module_id: str) -> None:
+        if self._module_thread is not None:
+            self._notify("有模組正在下載，請先等它完成。", "warning")
+            return
+        spec = modules.get_module(module_id)
+        if spec is None:
+            self._notify("這個平台沒有提供這個模組。", "warning")
+            return
+
+        widgets = self._module_rows.get(module_id, {})
+        install_button: QPushButton | None = widgets.get("install")  # type: ignore[assignment]
+        if install_button is not None:
+            install_button.setEnabled(False)
+
+        self._module_progress.show()
+        self._module_status.setText(f"下載 {spec.label}…")
+
+        self._module_thread = ModuleInstallThread(module_id, self)
+        self._module_thread.progress.connect(self._on_module_progress)
+        self._module_thread.succeeded.connect(lambda path, mid=module_id: self._on_module_done(mid, path))
+        self._module_thread.failed.connect(self._on_module_failed)
+        self._module_thread.finished.connect(self._thread_cleanup)
+        self._module_thread.start()
+
+    def _thread_cleanup(self) -> None:
+        self._module_progress.hide()
+
+    def _on_module_progress(self, fraction: float, message: str) -> None:
+        self._module_progress.setValue(int(fraction * 1000))
+        self._module_status.setText(message)
+
+    def _on_module_done(self, module_id: str, path: str) -> None:
+        self._module_thread = None
+        self._module_status.setText(f"{module_id} 已安裝到 {path}")
+        self._refresh_modules()
+        self._update_status()
+        Toast.show_message(self.window(), f"{module_id} 模組已安裝。", "success")
+
+    def _on_module_failed(self, message: str) -> None:
+        self._module_thread = None
+        self._module_status.setText(message)
+        self._refresh_modules()
+        Toast.show_message(self.window(), "模組下載失敗。", "warning")
+
+    def _remove_module(self, module_id: str) -> None:
+        if modules.remove(module_id):
+            self._module_status.setText(f"{module_id} 已移除。")
+        self._refresh_modules()
+        self._update_status()
+
     def _office_card(self) -> QWidget:
         frame, layout = self._card(
             "LibreOffice（Office 文件）",
-            "OpenConvert 不內建 LibreOffice。若系統中找不到，其他格式仍可正常使用。",
+            "可以從上方「引擎模組」下載；也可以自行安裝後讓 OpenConvert 自動偵測。",
         )
 
         self._office_status = QLabel()
@@ -306,6 +444,7 @@ class SettingsPage(QWidget):
         self._keep_history.setChecked(settings.keep_history)
         self._play_sound.setChecked(settings.play_sound)
         self._update_status()
+        self._refresh_modules()
 
     def refresh_from_settings(self, settings: Settings) -> None:
         self._settings = settings
@@ -322,7 +461,7 @@ class SettingsPage(QWidget):
             version = version_of(self._tools.ffmpeg) or "FFmpeg"
             short = version.split(" Copyright")[0]
             color = "#3fb950"
-            origin = "（內附）" if self._tools.bundled else ""
+            origin = "（模組）" if self._tools.managed else ""
             self._ffmpeg_status.setText(f"● 已找到 FFmpeg{origin}　{short}")
         else:
             color = "#d29922"
@@ -336,7 +475,7 @@ class SettingsPage(QWidget):
             version = office_version(tools.soffice) or "LibreOffice"
             short = version.split(" Copyright")[0]
             color = "#3fb950"
-            origin = "（內附）" if tools.bundled else ""
+            origin = "（模組）" if tools.managed else ""
             self._office_status.setText(f"● 已找到 LibreOffice{origin}　{short}")
         else:
             color = "#d29922"
@@ -398,6 +537,7 @@ class SettingsPage(QWidget):
     def _recheck(self) -> None:
         self._tools = discover(self._settings.ffmpeg_path, self._settings.ffprobe_path)
         self._update_status()
+        self._refresh_modules()
         self.toolsChanged.emit(self._tools)
         if self._tools.available:
             Toast.show_message(self.window(), "已找到 FFmpeg。", "success")

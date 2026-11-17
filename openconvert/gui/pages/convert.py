@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -23,7 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...core import modules
 from ...core.ffmpeg import FFmpegTools
+from ...core.ffmpeg import discover as discover_ffmpeg
 from ...core.job import Job, JobStatus
 from ...core.kinds import SUPPORTED_EXTENSIONS, extension_of
 from ...core.office import discover as discover_office
@@ -40,6 +43,7 @@ from .. import icons
 from ..utils import open_outputs
 from ..widgets.drop_zone import DropZone
 from ..widgets.job_table import JobTable
+from ..widgets.module_dialog import ModuleInstallDialog
 
 QUALITY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("高品質（檔案較大）", "high"),
@@ -531,6 +535,35 @@ class ConvertPage(QWidget):
 
     # ------------------------------------------------------------------ 執行
 
+    def _ensure_modules(self, pending: list[Job]) -> bool:
+        """需要引擎但尚未安裝時，詢問使用者要不要現在下載。"""
+        if any(job.target.needs_ffmpeg for job in pending) and not self._tools.available:
+            if not self._offer_module("ffmpeg"):
+                return False
+            self._tools = discover_ffmpeg()
+
+        if any(job.target.needs_office for job in pending):
+            office_tools = discover_office(self._settings.office_path)
+            if not office_tools.available and not self._offer_module("libreoffice"):
+                return False
+        return True
+
+    def _offer_module(self, module_id: str) -> bool:
+        spec = modules.get_module(module_id)
+        if spec is None:
+            label = "FFmpeg" if module_id == "ffmpeg" else "LibreOffice"
+            self._notify(
+                f"找不到 {label}，這個平台也沒有提供下載模組。請自行安裝，或到「設定」指定路徑。",
+                "error",
+            )
+            return False
+
+        dialog = ModuleInstallDialog(module_id, self)
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        if accepted:
+            self._notify(f"{spec.label} 模組已安裝，繼續轉換。", "success")
+        return accepted
+
     def _start(self) -> None:
         if self._running:
             return
@@ -540,22 +573,8 @@ class ConvertPage(QWidget):
             self._notify("沒有待轉換的工作。", "warning")
             return
 
-        if any(job.target.needs_ffmpeg for job in pending) and not self._tools.available:
-            self._notify(
-                "找不到 FFmpeg，無法轉換影片或音訊。請到「設定」指定 FFmpeg 路徑。",
-                "error",
-            )
+        if not self._ensure_modules(pending):
             return
-
-        if any(job.target.needs_office for job in pending):
-            office_tools = discover_office(self._settings.office_path)
-            if not office_tools.available:
-                self._notify(
-                    "找不到 LibreOffice，無法轉換 Office 文件。請安裝 LibreOffice，"
-                    "或到「設定」指定 soffice 路徑。",
-                    "error",
-                )
-                return
 
         self._queue.apply_settings(self._settings)
         self._files.clear()

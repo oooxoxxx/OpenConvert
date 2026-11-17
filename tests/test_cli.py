@@ -70,6 +70,66 @@ def test_convert_archive_via_cli(csv_file: Path, tmp_path: Path):
     assert (out / "data.zip").exists()
 
 
+def test_modules_list_reports_status(capsys):
+    assert cli.main(["modules", "list"]) == 0
+
+    output = capsys.readouterr().out
+    assert "ffmpeg" in output
+    assert "libreoffice" in output
+    assert "未安裝" in output
+
+
+def test_modules_install_with_local_manifest(tmp_path: Path, monkeypatch, capsys):
+    import hashlib
+    import zipfile
+
+    from openconvert.core import modules as modules_module
+
+    archive = tmp_path / "ffmpeg-test.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("ffmpeg-test/bin/ffmpeg.exe", b"ffmpeg")
+        bundle.writestr("ffmpeg-test/bin/ffprobe.exe", b"ffprobe")
+
+    manifest = {
+        "manifest_version": 1,
+        "channel": "test",
+        "modules": {
+            "ffmpeg": {
+                "label": "FFmpeg（測試）",
+                "purpose": "測試",
+                "license": "GPL-3.0-or-later",
+                "homepage": "https://example.com",
+                "source": "https://example.com",
+                "source_page": "https://example.com",
+                "targets": {
+                    modules_module.platform_key(): {
+                        "version": "1.0",
+                        "url": archive.as_uri(),
+                        "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                        "size": archive.stat().st_size,
+                        "archive": "zip",
+                    }
+                },
+            }
+        },
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setenv(modules_module.MANIFEST_ENV, str(manifest_path))
+
+    dest = tmp_path / "tools"
+    assert cli.main(["modules", "install", "ffmpeg", "--dest", str(dest)]) == 0
+
+    assert (dest / "ffmpeg" / "ffmpeg.exe").is_file()
+    assert (dest / "THIRD-PARTY-NOTICES.txt").exists()
+
+    assert cli.main(["modules", "list", "--dest", str(dest)]) == 0
+    assert "已安裝" in capsys.readouterr().out
+
+    assert cli.main(["modules", "remove", "ffmpeg", "--dest", str(dest)]) == 0
+    assert not (dest / "ffmpeg").exists()
+
+
 def test_probe_outputs_json(png_file: Path, capsys):
     assert cli.main(["probe", str(png_file)]) == 0
 
