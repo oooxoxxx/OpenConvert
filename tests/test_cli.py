@@ -81,14 +81,16 @@ def test_modules_list_reports_status(capsys):
 
 def test_modules_install_with_local_manifest(tmp_path: Path, monkeypatch, capsys):
     import hashlib
+    import sys
     import zipfile
 
     from openconvert.core import modules as modules_module
 
+    exe = ".exe" if sys.platform == "win32" else ""
     archive = tmp_path / "ffmpeg-test.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
-        bundle.writestr("ffmpeg-test/bin/ffmpeg.exe", b"ffmpeg")
-        bundle.writestr("ffmpeg-test/bin/ffprobe.exe", b"ffprobe")
+        bundle.writestr(f"ffmpeg-test/bin/ffmpeg{exe}", b"ffmpeg")
+        bundle.writestr(f"ffmpeg-test/bin/ffprobe{exe}", b"ffprobe")
 
     manifest = {
         "manifest_version": 1,
@@ -120,7 +122,7 @@ def test_modules_install_with_local_manifest(tmp_path: Path, monkeypatch, capsys
     dest = tmp_path / "tools"
     assert cli.main(["modules", "install", "ffmpeg", "--dest", str(dest)]) == 0
 
-    assert (dest / "ffmpeg" / "ffmpeg.exe").is_file()
+    assert (dest / "ffmpeg" / f"ffmpeg{exe}").is_file()
     assert (dest / "THIRD-PARTY-NOTICES.txt").exists()
 
     assert cli.main(["modules", "list", "--dest", str(dest)]) == 0
