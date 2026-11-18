@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openconvert"
-version = "0.4.0"
+version = "0.5.0"
 description = "免費、開源、跨平台的通用檔案轉換工具（影片／音訊／圖片／PDF／電子書／文件／資料／字幕／字型／壓縮）"
 readme = "README.md"
 requires-python = ">=3.10"

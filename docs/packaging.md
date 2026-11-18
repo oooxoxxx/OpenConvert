@@ -2,22 +2,32 @@
 
 本文件說明如何把 OpenConvert 打包成不需要 Python 環境的可執行版本，以及發佈流程。
 
-## 發佈形態：模組化
+## 發佈形態：模組化 + 精簡引擎
 
 自 0.4.0 起，發佈檔**不含任何引擎**，只有主程式（約 90 MB）。引擎（FFmpeg、LibreOffice）
 是獨立的「模組」，由程式在需要時從本專案的 GitHub Release 資產下載：
 
 - 引擎清單與 SHA-256：`openconvert/modules/manifest.json`
-- 引擎資產：GitHub Release 標籤 `engines-v1`
-- 安裝位置：程式旁的 `tools/`；不可寫時退回到使用者資料夾 `engines/`
+- 引擎資產：GitHub Release 標籤 `engines-v2`
+- 安裝位置：程式旁的 `modules/`（內容視為**暫存**，可隨時刪除、重下即還原）；
+  不可寫時退回到使用者資料夾 `engines/`
+- **系統優先**：電腦上已安裝 FFmpeg／LibreOffice 時直接用系統的，不下載模組
 - 雜湊不符、沒有網路或平台未提供時，會給明確錯誤並中止，不會執行未經驗證的內容
 
-這樣的好處：發佈檔小、不用 GPL 元件也能用大多數功能、需要什麼才下載什麼。
+### 精簡版引擎（0.5.0 起）
+
+| 模組 | 完整版 | 精簡版 | 做法 |
+| --- | --- | --- | --- |
+| FFmpeg | 195 MB | **32.5 MB** | 自製建置：`--disable-autodetect`，只編譯 libx264／libmp3lame／libopus／libvorbis／libtheora／libvpx |
+| LibreOffice | 373 MB（解壓 1.5 GB） | **269.6 MB**（解壓 721 MB） | 官方安裝樹剝離：移除 gallery／help／字典／範本／autotext／Basic／Python／其他語言（只留 zh-TW＋en） |
+
+兩者都經過完整轉換測試（FFmpeg 18 項、LibreOffice 10 項與系統版頁數比對）；
+LibreOffice 的移除清單完整記錄在模組內的 `STRIP-MANIFEST.txt`。
 
 ## 為什麼是 onedir 而不是 onefile
 
 - 啟動快：onefile 每次執行都要把 PySide6 解壓到暫存目錄（數秒）。
-- 可放外部工具：使用者可把引擎模組或自備的 `ffmpeg.exe` 放進 `OpenConvert/tools/`。
+- 可放外部工具：使用者可把引擎模組或自備的 `ffmpeg.exe` 放進 `OpenConvert/modules/`。
 - 防毒誤判較少：onefile 的自我解壓行為常被標記。
 
 ## 本機建置
@@ -74,49 +84,56 @@ dist\OpenConvert\OpenConvertCLI.exe modules list
 安裝後的結構：
 
 ```
-tools/ffmpeg/ffmpeg.exe
-tools/ffmpeg/ffprobe.exe
-tools/libreoffice/program/soffice.exe
-tools/THIRD-PARTY-NOTICES.txt        # 自動產生的授權聲明
+modules/ffmpeg/ffmpeg.exe
+modules/ffmpeg/ffprobe.exe
+modules/libreoffice/program/soffice.exe
+modules/THIRD-PARTY-NOTICES.txt        # 自動產生的授權聲明
 ```
 
 ### 開發者／發佈：維護引擎資產
 
-1. 更新 `openconvert/modules/manifest.json`（新的引擎版本、網址與 SHA-256）。
-2. 手動執行 `.github/workflows/engines.yml`（`workflow_dispatch`），它會：
-   - 在 Windows 與 Linux runner 上用 `scripts/fetch_tools.py --collect assets` 下載並驗證引擎；
-   - 把壓縮檔上傳到 `engines-v1` Release（`gh release upload --clobber`）。
+引擎資產由兩個 workflow 產生並上傳到 `engines-v2` Release：
+
+1. **`ffmpeg-min.yml`**：以 BtbN 的 builder 映像交叉編譯精簡 FFmpeg
+   （`--disable-autodetect` + 6 個外部函式庫），建置系統以 commit 釘選確保可重現。
+2. **`engines.yml`**：在 Windows runner 上執行 `scripts/build_libreoffice_module.py`，
+   下載官方 MSI（SHA-256 驗證）→ 解壓 → 剝離 → 打包成精簡版 ZIP。
+
+更新引擎版本的流程：
+
+1. 更新 `openconvert/modules/manifest.json`（新的版本、網址與 SHA-256）。
+2. 執行對應的 workflow；資產會上傳到引擎 Release（`--clobber`）。
 3. 由於 manifest 內含 SHA-256，任何來源檔變動都會讓下載失敗，這是刻意的保護。
 
 本地預覽清單與狀態：
 
 ```powershell
 python scripts\fetch_tools.py --list
-python scripts\fetch_tools.py --only ffmpeg          # 安裝到 tools/
-python scripts\fetch_tools.py --collect assets\      # 只下載＋驗證
+python scripts\fetch_tools.py --only ffmpeg          # 安裝到 modules/
+python scripts\build_libreoffice_module.py --out assets   # 手動製作剝離版
 ```
 
-**支援的平台**：目前 Windows x64 有 FFmpeg 與 LibreOffice，Linux x64 只有 FFmpeg。
+**支援的平台**：目前 Windows x64 有 FFmpeg（精簡）與 LibreOffice（剝離），Linux x64 有 FFmpeg（精簡）。
 其他平台（macOS、arm64）會回報「此平台未提供」，不會偷偷下載來路不明的檔案。
 
 ### 授權（下載模組時自動處理）
 
-- FFmpeg 使用 BtbN 的 **GPL 建置**（`--enable-gpl --enable-libx264 --enable-libx265`）。
-- LibreOffice 為 **MPL-2.0**。
-- 安裝模組後，`tools/THIRD-PARTY-NOTICES.txt` 會列出授權、版本、網址與原始碼取得方式。
+- FFmpeg 精簡版為 **GPL 建置**（`--enable-gpl --enable-libx264`）。
+- LibreOffice 精簡版為 **MPL-2.0**（官方安裝樹剝離，移除清單見 `STRIP-MANIFEST.txt`）。
+- 安裝模組後，`THIRD-PARTY-NOTICES.txt` 會列出授權、版本、網址與原始碼取得方式。
 - OpenConvert 本身的程式碼仍為 MIT；引擎都是獨立程式，以子程序呼叫，不與本專案連結。
 - 沒有安裝模組時，發佈檔**不含**任何 GPL／MPL 元件。
 
 ### 也可以不透過模組
 
-使用者可以自行安裝系統版 FFmpeg／LibreOffice，或手動放入：
+使用者可以自行安裝系統版 FFmpeg／LibreOffice（**優先使用**），或手動放入：
 
 ```
-tools/ffmpeg/ffmpeg.exe                 # 或 tools/ffmpeg.exe、tools/bin/...
-tools/libreoffice/program/soffice.exe
+modules/ffmpeg/ffmpeg.exe                 # 或 modules/ffmpeg.exe、modules/bin/...
+modules/libreoffice/program/soffice.exe
 ```
 
-搜尋順序是「設定頁指定 → 模組／`tools/` → 系統 PATH → 常見安裝位置」，
+搜尋順序是「設定頁指定 → 系統已安裝 → 模組／`tools/` → 常見安裝位置」，
 設定頁會以「（模組）」標示由 OpenConvert 管理的引擎。
 
 LibreOffice 的無介面轉換每次都使用獨立的 `-env:UserInstallation` 暫時設定檔，
@@ -129,19 +146,20 @@ LibreOffice 的無介面轉換每次都使用獨立的 `-env:UserInstallation` �
 
 ## 發佈流程（Windows）
 
-1. 確認 `engines-v1` Release 存在且 manifest 的 SHA-256 與資產一致（必要時執行 `engines.yml`）。
+1. 確認 `engines-v2` Release 存在且 manifest 的 SHA-256 與資產一致
+   （必要時執行 `ffmpeg-min.yml` 與 `engines.yml`）。
 2. 更新版本號與 `CHANGELOG.md`。
 3. 跑完 `pytest`、`ruff check`、`ruff format --check`。
 4. 建立標籤並推送：
 
    ```powershell
-   git tag v0.4.0
-   git push origin v0.4.0
+   git tag v0.5.0
+   git push origin v0.5.0
    ```
 
 5. `.github/workflows/release-windows.yml` 會自動：
    - 檢查標籤與程式版本一致
-   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.4.0-windows-x64.zip`
+   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.5.0-windows-x64.zip`
    - 建立 GitHub Release 並附上 ZIP
 
 若只是要驗證流程，可用 `workflow_dispatch` 手動執行（只上傳 artifact、不建立 Release）。
@@ -154,7 +172,7 @@ LibreOffice 的無介面轉換每次都使用獨立的 `-env:UserInstallation` �
 - 或提供 SHA-256 檢查碼，讓使用者自行比對：
 
   ```powershell
-  Get-FileHash OpenConvert-0.4.0-windows-x64.zip -Algorithm SHA256
+  Get-FileHash OpenConvert-0.5.0-windows-x64.zip -Algorithm SHA256
   ```
 
 ## 其他平台
@@ -175,6 +193,6 @@ pyinstaller packaging/openconvert.spec --noconfirm
 | 啟動即關閉、沒有訊息 | 用 `console=True` 重新建置一次看 traceback，或從命令列執行 `OpenConvert.exe` |
 | 找不到 Qt 平台外掛 | 確認 `_internal/PySide6/plugins/platforms/` 存在；不要手動搬動 `_internal` 內的檔案 |
 | PDF → 圖片失敗，提示 pypdfium2 | spec 的 `collect_dynamic_libs("pypdfium2_raw")` 未被執行，重新建置 |
-| 影片轉換說找不到 FFmpeg | `modules install ffmpeg`，把 `ffmpeg.exe` 放進 `tools/`，或在「設定」頁指定路徑 |
-| 模組下載失敗 | 檢查網路；確認 `engines-v1` Release 存在；manifest 的 SHA-256 與來源檔不符時會刻意中止 |
+| 影片轉換說找不到 FFmpeg | `modules install ffmpeg`、放入 `modules/`，或安裝系統版 FFmpeg（系統版會優先使用） |
+| 模組下載失敗 | 檢查網路；確認 `engines-v2` Release 存在；manifest 的 SHA-256 與來源檔不符時會刻意中止 |
 | 防毒誤報 | 送交廠商誤報回報；不要用 UPX 壓縮（spec 已關閉） |

@@ -6,16 +6,21 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.4.0（Beta）**，共 82 個目標格式，已通過 192 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.5.0（Beta）**，共 82 個目標格式，已通過 194 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
 
-**引擎採模組化**：主程式（約 90 MB）不含任何引擎；需要什麼、下載什麼。
+**引擎採模組化，系統優先**：電腦上已裝有 FFmpeg／LibreOffice 就直接用系統的、不下載；
+沒有時才下載**精簡版**模組（只含 OpenConvert 用得到的部分）。
 
 | 模組 | 大小 | 授權 | 沒有它時 |
 | --- | --- | --- | --- |
-| FFmpeg（影片與音訊） | 約 195 MB | GPL-3.0-or-later | 影片／音訊目標無法使用 |
-| LibreOffice（Office 文件排版） | 約 373 MB | MPL-2.0 | Office／試算表轉 PDF 無法使用 |
+| FFmpeg（影片與音訊） | **約 33 MB**（完整版 195 MB） | GPL-3.0-or-later | 影片／音訊目標無法使用 |
+| LibreOffice（Office 文件排版） | **約 270 MB**（完整版 373 MB） | MPL-2.0 | Office／試算表轉 PDF 無法使用 |
 
-下載一律從本專案的 GitHub Release 資產取得，並以 **SHA-256 驗證**；不做影片的人永遠不用下載 LibreOffice。
+- 模組放在程式旁的 `modules/`，**內容視為暫存**：可隨時刪除，重下即還原。
+- 下載一律從本專案的 GitHub Release 資產取得，並以 **SHA-256 驗證**。
+- 精簡方式：FFmpeg 為自製建置（只編譯用到的編解碼器）；LibreOffice 為官方安裝樹剝離
+  （移除圖庫／help／字典／範本等，清單見模組內 `STRIP-MANIFEST.txt`），
+  兩者都經過完整轉換測試，行為與完整版一致。
 
 ---
 
@@ -61,10 +66,11 @@ openconvert-cli modules install libreoffice     # Office 文件轉 PDF
 openconvert-cli modules remove libreoffice
 ```
 
-- 模組安裝在程式旁的 `tools/`（可攜式）；該位置不可寫時退回到使用者資料夾 `engines/`。
+- 模組安裝在程式旁的 **`modules/`**，內容視為暫存（可隨時刪除、重下即還原）；
+  該位置不可寫時退回到使用者資料夾 `engines/`。
 - 沒有網路時下載會失敗並給明確訊息，其他功能不受影響。
-- 也可以自行放入檔案（`tools/ffmpeg/ffmpeg.exe`、`tools/libreoffice/program/soffice.exe`），
-  或安裝系統版 FFmpeg／LibreOffice——搜尋順序：**設定頁指定 → 模組／`tools/` → 系統 PATH → 常見安裝位置**。
+- 也可以自行放入檔案（`modules/ffmpeg/ffmpeg.exe`、`modules/libreoffice/program/soffice.exe`），
+  或安裝系統版 FFmpeg／LibreOffice——搜尋順序：**設定頁指定 → 系統已安裝 → 模組／`tools/` → 常見安裝位置**。
 
 ## 安裝
 
@@ -159,7 +165,7 @@ openconvert-cli probe clip.mp4
 
 ```powershell
 pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m pytest -q        # 192 tests
+.venv\Scripts\python.exe -m pytest -q        # 194 tests
 .venv\Scripts\ruff.exe check .               # lint
 .venv\Scripts\ruff.exe format --check .      # 格式檢查
 ```
@@ -184,8 +190,10 @@ pyinstaller packaging\openconvert.spec --noconfirm
 產物位於 `dist/OpenConvert/`（`--onedir`），內含圖形介面 `OpenConvert.exe` 與命令列 `OpenConvertCLI.exe`。
 引擎不在發佈檔內，由使用者按需下載（見「引擎模組」）。
 
-引擎資產由 `.github/workflows/engines.yml` 收集並上傳到 `engines-v1` Release；
-`scripts/fetch_tools.py --list` 可檢視清單與狀態。建置細節見 [`docs/packaging.md`](docs/packaging.md)。
+引擎資產由兩個 workflow 產生並上傳到 `engines-v2` Release：
+`.github/workflows/ffmpeg-min.yml`（交叉編譯精簡 FFmpeg）與
+`.github/workflows/engines.yml`（製作剝離版 LibreOffice）。
+建置細節見 [`docs/packaging.md`](docs/packaging.md)。
 
 ## 專案結構
 
@@ -225,11 +233,12 @@ scripts/        # 開發輔助工具（截圖預覽、引擎資產收集）
 | LibreOffice | **MPL-2.0** | Office 文件排版與轉換（模組，按需下載） |
 
 **FFmpeg 與 LibreOffice 不與本專案連結**，都是以獨立子程序呼叫，也不在主發佈檔內：
-由使用者按需下載模組（來源為本專案的 GitHub Release 資產，附 SHA-256）。
+由使用者按需下載**精簡版**模組（來源為本專案的 GitHub Release 資產，附 SHA-256）。
 
 - 沒有安裝模組時，發佈檔不含任何 GPL／MPL 元件。
-- 安裝模組後，授權與原始碼取得方式會寫入 `tools/THIRD-PARTY-NOTICES.txt`
-  （FFmpeg 原始碼：<https://ffmpeg.org/download.html>，建置腳本：<https://github.com/BtbN/FFmpeg-Builds>）。
+- 安裝模組後，授權與原始碼取得方式會寫入 `THIRD-PARTY-NOTICES.txt`
+  （FFmpeg 原始碼：<https://ffmpeg.org/download.html>，建置腳本：<https://github.com/BtbN/FFmpeg-Builds>；
+  LibreOffice 精簡版的移除清單見模組內 `STRIP-MANIFEST.txt`）。
 - OpenConvert 本身的程式碼維持 **MIT**。
 
 若你要再散布已安裝模組的版本，請一併保留上述授權聲明。

@@ -157,22 +157,23 @@ openconvert/
 
 ```
 manifest.json ── 讀取 ──► modules.install(id)
-                              │  下載（SHA-256 驗證、可取消）
+                              │  下載（SHA-256 驗證、可取消、精簡版／剝離版）
                               ▼
-tools/ffmpeg/{ffmpeg.exe,ffprobe.exe}      # 優先；不可寫時退回 user engines/
-tools/libreoffice/program/soffice.exe
-tools/THIRD-PARTY-NOTICES.txt              # 安裝後自動產生
+modules/ffmpeg/{ffmpeg.exe,ffprobe.exe}    # 精簡版（只含用到的編解碼器）
+modules/libreoffice/program/soffice.exe    # 剝離版（STRIP-MANIFEST.txt 記錄移除項目）
+modules/THIRD-PARTY-NOTICES.txt            # 安裝後自動產生
 ```
 
 - `core/resources.py` 的 `module_search_dirs()` 回傳模組可能所在的位置，
-  `app_dir()` 在打包後是執行檔所在目錄、從原始碼執行時是專案根目錄，因此 `tools/` 位置一致。
-- 引擎搜尋順序：設定頁指定 → **模組／`tools/`** → 系統 PATH → 常見安裝位置。
+  `app_dir()` 在打包後是執行檔所在目錄、從原始碼執行時是專案根目錄，因此 `modules/` 位置一致。
+- 引擎搜尋順序：設定頁指定 → **系統已安裝**（PATH／常見位置）→ 模組 `modules/`
+  （相容舊 `tools/`）。系統已安裝時直接用系統的、不下載模組。
 - `FFmpegTools.managed` 與 `OfficeTools.managed` 標示引擎是否由 OpenConvert 管理，
   設定頁據此顯示「（模組）」。
 - GUI 的下載在 `QThread`（`gui/widgets/module_dialog.py`）執行，可取消；轉換頁在需要時
   會以對話框詢問「要不要現在下載」，成功後自動繼續。
-- 發佈流程：`engines.yml` 把引擎資產上傳到 `engines-v1` Release；
-  應用程式 Release 只含主程式。
+- 發佈流程：`ffmpeg-min.yml` 交叉編譯精簡 FFmpeg、`engines.yml` 製作剝離版 LibreOffice，
+  兩者都上傳到 `engines-v2` Release；應用程式 Release 只含主程式。
 | `keep_history` | `bool` | `true` | 是否寫入轉換紀錄 |
 | `play_sound` | `bool` | `true` | 完成時提示音 |
 | `last_format` | `str` | `"mp4"` | 上次使用的格式 |

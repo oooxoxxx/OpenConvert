@@ -1,36 +1,30 @@
 {
   "manifest_version": 1,
-  "channel": "engines-v1",
+  "channel": "engines-v2",
   "repository": "oooxoxxx/OpenConvert",
-  "note": "引擎模組固定下載來源。所有檔案都以 SHA-256 驗證；FFmpeg 為 GPL-3.0-or-later（含 libx264／libx265），LibreOffice 為 MPL-2.0。授權與原始碼取得方式會寫入 tools/THIRD-PARTY-NOTICES.txt。",
+  "note": "引擎模組固定下載來源。所有檔案都以 SHA-256 驗證；FFmpeg 為 GPL-3.0-or-later 的精簡建置（只含 OpenConvert 用到的編解碼器），LibreOffice 為 MPL-2.0 的剝離版（移除圖庫／help／字典／範本等，清單見壓縮檔內 STRIP-MANIFEST.txt）。授權與原始碼取得方式會寫入 THIRD-PARTY-NOTICES.txt。",
   "modules": {
     "ffmpeg": {
       "label": "FFmpeg（影片與音訊）",
       "purpose": "影片與音訊轉換、抽出音軌、媒體資訊探測",
-      "license": "GPL-3.0-or-later（含 libx264／libx265）",
+      "license": "GPL-3.0-or-later（含 libx264）",
       "homepage": "https://ffmpeg.org/",
       "source": "https://github.com/BtbN/FFmpeg-Builds",
       "source_page": "https://ffmpeg.org/download.html",
       "targets": {
         "windows-x64": {
-          "version": "n9.0.2-20261115",
-          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/ffmpeg-n9.0.2-57-gd838f9f9ae-win64-gpl-9.0.zip",
-          "origin": {
-            "url": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-15-12-40/ffmpeg-n9.0.2-57-gd838f9f9ae-win64-gpl-9.0.zip"
-          },
-          "sha256": "11b387a88ad24ee6d78bae7d24a2417834737e6ac00f0a36ca67fead1e924eff",
-          "size": 194990151,
+          "version": "9.0.2-min",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v2/ffmpeg-min-win64.zip",
+          "sha256": "3df9d055b9c0c1de1d3b6b8e2a8f14bbdf01d9f9a5e206b05ab9b2a4640d7f85",
+          "size": 32458828,
           "archive": "zip"
         },
         "linux-x64": {
-          "version": "n9.0.2-20261115",
-          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/ffmpeg-n9.0.2-57-gd838f9f9ae-linux64-gpl-9.0.tar.xz",
-          "origin": {
-            "url": "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-15-12-40/ffmpeg-n9.0.2-57-gd838f9f9ae-linux64-gpl-9.0.tar.xz"
-          },
-          "sha256": "72836132863e0d40e2af74a8ef59c32b10771aed0c8540b634fb77db2e6e3ae2",
-          "size": 152700372,
-          "archive": "tar.xz"
+          "version": "9.0.2-min",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v2/ffmpeg-min-linux64.tar.gz",
+          "sha256": "878d89a458ce3cd46ef94f7f218c6d497d64333532a57a2ea9a7ae0270d23462",
+          "size": 33331451,
+          "archive": "tar.gz"
         }
       }
     },
@@ -51,14 +45,11 @@
       },
       "targets": {
         "windows-x64": {
-          "version": "26.2.7",
-          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v1/LibreOffice_26.2.7_Win_x86-64.msi",
-          "origin": {
-            "url": "https://download.documentfoundation.org/libreoffice/stable/26.2.7/win/x86_64/LibreOffice_26.2.7_Win_x86-64.msi"
-          },
-          "sha256": "480fecf759fc6393bd614fbf43753eb95a8198fc1a065d41b727e3b664cd1e59",
-          "size": 373121024,
-          "archive": "msi"
+          "version": "26.2.7-stripped",
+          "url": "https://github.com/oooxoxxx/OpenConvert/releases/download/engines-v2/LibreOffice_26.2.7_win64_stripped.zip",
+          "sha256": "84c96880e923cfdc8eadd668db59e92e1619ce1ff35901f0e217b37eeb797a69",
+          "size": 269564370,
+          "archive": "zip"
         }
       }
     }

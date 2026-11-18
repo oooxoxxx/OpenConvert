@@ -11,7 +11,35 @@
 - 拖放排序與輸出檔名樣板
 - 影片裁剪與字幕嵌入
 - 掃描型 PDF 的離線 OCR（可做成模組）
-- macOS／Linux 的引擎模組
+- macOS 的引擎模組
+
+## [0.5.0] - 2026-11-18
+
+**模組精簡化 + 系統優先**。引擎模組大幅縮小，且電腦上已裝有引擎時直接用系統的、不下載。
+測試 192 → 194 個。
+
+### 新增
+
+- **精簡版 FFmpeg 模組**：以 BtbN 的建置系統自製，只編譯 OpenConvert 用到的
+  libx264／libmp3lame／libopus／libvorbis／libtheora／libvpx（`--disable-autodetect`），
+  **下載體積從 195 MB 降到 32.5 MB**。18 項轉換（各容器、抽音軌、GIF、影格、圖片轉影片）
+  全部實測通過，編碼器與完整版一致。
+- **剝離版 LibreOffice 模組**：從官方 MSI 解開後移除圖庫／help／字典／範本／autotext／
+  Basic／Python／其他語言資源（只留 zh-TW＋en），**下載體積從 373 MB 降到 269.6 MB**
+  （解壓後 1.5 GB → 721 MB）。10 項 Office 轉換與系統版**頁數逐一比對一致**，
+  中文字可正常抽取；移除清單完整記錄在壓縮檔內的 `STRIP-MANIFEST.txt`。
+- **`scripts/build_libreoffice_module.py`**：剝離流程腳本（CI 與本機共用）。
+- **`ffmpeg-min.yml` workflow**：以 BtbN builder 映像交叉編譯精簡 FFmpeg（釘選建置系統版本）。
+
+### 變更
+
+- **引擎搜尋順序改為「系統優先」**：設定頁指定 → **系統已安裝**（PATH／常見位置）→
+  模組（`modules/`，不可寫時退回使用者資料夾）→（相容）舊的 `tools/`。
+  電腦上已裝有 FFmpeg／LibreOffice 時直接用系統的，**不會下載模組**。
+- 模組安裝目標從 `tools/` 改為 **`modules/`**，內容視為暫存（可隨時刪除、重下即還原）；
+  0.4.0 裝在 `tools/` 的引擎仍會被偵測到，不需重裝。
+- 引擎資產改放在 **`engines-v2`** Release；manifest 對應更新。
+- `office.version_of` 在 Windows 改問 `soffice.com`（`soffice.exe --version` 沒有輸出）。
 
 ## [0.4.0] - 2026-11-17
 
