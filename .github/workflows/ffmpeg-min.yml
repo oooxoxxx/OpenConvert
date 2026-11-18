@@ -1,0 +1,106 @@
+name: FFmpeg 精簡建置（模組用）
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "引擎 Release 標籤（留空只上傳 artifact、不發佈）"
+        default: ""
+        required: false
+        type: string
+      ffmpeg_ref:
+        description: "FFmpeg 版本（tag 或分支）"
+        default: "n9.0.2"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  # 釘選 BtbN 建置系統的版本，確保可重現；升級時請同步更新這個 sha
+  FFBUILDS_PIN: "7f2a6b1050d302144de8366afa37a75e46f326aa"
+
+jobs:
+  build:
+    name: 精簡 FFmpeg（${{ matrix.target }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win64
+            image: ghcr.io/btbn/ffmpeg-builder/win64-gpl:latest
+            pack: zip
+          - target: linux64
+            image: ghcr.io/btbn/ffmpeg-builder/linux64-gpl:latest
+            pack: tar.gz
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 準備 BtbN 建置系統（釘選 ${{ env.FFBUILDS_PIN }}）
+        run: |
+          git clone --filter=blob:none https://github.com/BtbN/FFmpeg-Builds.git btbn
+          git -C btbn checkout "${FFBUILDS_PIN}"
+
+      - name: 建置精簡 FFmpeg
+        run: |
+          mkdir -p ffbuild out
+          cat > ffbuild/build-inner.sh <<'EOF'
+          set -xe
+          cd /ffbuild
+          rm -rf ffmpeg prefix
+          git clone --filter=blob:none --depth 1 --branch="$GIT_BRANCH" https://github.com/FFmpeg/FFmpeg.git ffmpeg
+          cd ffmpeg
+          ./configure --prefix=/ffbuild/prefix --pkg-config-flags="--static" \
+            $FFBUILD_TARGET_FLAGS \
+            --enable-gpl --enable-version3 \
+            --disable-autodetect --disable-debug --disable-doc \
+            --enable-libx264 --enable-libmp3lame --enable-libopus \
+            --enable-libvorbis --enable-libtheora --enable-libvpx \
+            --enable-zlib --enable-lzma \
+            --extra-version=openconvert-min || { cat ffbuild/config.log; exit 1; }
+          make -j"$(nproc)"
+          make install
+          EOF
+          sed -i 's/^          //' ffbuild/build-inner.sh
+
+          docker run --rm \
+            -e GIT_BRANCH="${{ inputs.ffmpeg_ref }}" \
+            -e FF_CONFIGURE="" -e FF_CFLAGS="" -e FF_CXXFLAGS="" \
+            -e FF_LDFLAGS="" -e FF_LDEXEFLAGS="" -e FF_LIBS="" \
+            -v "$PWD/ffbuild":/ffbuild \
+            "${{ matrix.image }}" bash /ffbuild/build-inner.sh
+
+      - name: 打包（只保留 ffmpeg、ffprobe 與授權）
+        run: |
+          set -e
+          name="ffmpeg-min-${{ matrix.target }}"
+          mkdir -p "pkg/$name/bin"
+          cp ffbuild/prefix/bin/ffmpeg* "pkg/$name/bin/"
+          cp ffbuild/prefix/bin/ffprobe* "pkg/$name/bin/"
+          cp ffbuild/ffmpeg/COPYING.GPLv3 "pkg/$name/LICENSE.txt"
+          du -h "pkg/$name/bin/"* || true
+          if [ "${{ matrix.pack }}" = "zip" ]; then
+            (cd pkg && zip -9 -r "../out/${name}.zip" "$name")
+          else
+            (cd pkg && tar -czf "../out/${name}.tar.gz" "$name")
+          fi
+
+      - name: 上傳建置產物
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-min-${{ matrix.target }}
+          path: out/*
+          if-no-files-found: error
+
+      - name: 發佈到引擎 Release
+        if: inputs.tag != ''
+        run: |
+          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" \
+            --title "引擎資產 ${{ inputs.tag }}" \
+            --notes "OpenConvert 引擎模組的下載來源（SHA-256 見 openconvert/modules/manifest.json）。" || true
+          gh release upload "${{ inputs.tag }}" out/* --repo "${{ github.repository }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash

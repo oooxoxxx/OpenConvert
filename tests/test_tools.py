@@ -267,6 +267,26 @@ def _make_managed_dirs(monkeypatch, tmp_path: Path) -> Path:
     return tools
 
 
+def test_ffmpeg_prefers_system_when_installed(monkeypatch, tmp_path: Path):
+    from openconvert.core import ffmpeg as ffmpeg_module
+
+    tools = _make_managed_dirs(monkeypatch, tmp_path)
+    module_ffmpeg = tools / "ffmpeg" / f"ffmpeg{EXE}"
+    module_ffmpeg.parent.mkdir()
+    module_ffmpeg.write_bytes(b"managed")
+
+    system_ffmpeg = tmp_path / "system" / f"ffmpeg{EXE}"
+    system_ffmpeg.parent.mkdir()
+    system_ffmpeg.write_bytes(b"system")
+    monkeypatch.setattr(ffmpeg_module, "_search_path", lambda name: system_ffmpeg)
+
+    found = ffmpeg_module.discover()
+
+    # 系統已安裝 → 用系統的，不使用模組
+    assert found.ffmpeg == system_ffmpeg
+    assert found.managed is False
+
+
 def test_ffmpeg_prefers_managed_module(monkeypatch, tmp_path: Path):
     from openconvert.core.ffmpeg import discover
 
@@ -275,6 +295,8 @@ def test_ffmpeg_prefers_managed_module(monkeypatch, tmp_path: Path):
     ffmpeg.parent.mkdir()
     ffmpeg.write_bytes(b"managed")
     (tools / "ffmpeg" / f"ffprobe{EXE}").write_bytes(b"managed")
+    # 遮蔽系統引擎：模組只在系統沒有時使用
+    monkeypatch.setattr("openconvert.core.ffmpeg._search_path", lambda name: None)
 
     found = discover()
 
@@ -300,6 +322,26 @@ def test_ffmpeg_marks_system_binary_as_not_managed(monkeypatch, tmp_path: Path):
     assert found.managed is False
 
 
+def test_office_prefers_system_when_installed(monkeypatch, tmp_path: Path):
+    from openconvert.core import office as office_module
+
+    tools = _make_managed_dirs(monkeypatch, tmp_path)
+    module_soffice = tools / "libreoffice" / "program" / f"soffice{EXE}"
+    module_soffice.parent.mkdir(parents=True)
+    module_soffice.write_bytes(b"managed")
+
+    system_soffice = tmp_path / "system" / f"soffice{EXE}"
+    system_soffice.parent.mkdir()
+    system_soffice.write_bytes(b"system")
+    monkeypatch.setattr(office_module.shutil, "which", lambda name: str(system_soffice))
+    monkeypatch.setattr(office_module, "_candidate_paths", lambda: iter(()))
+
+    found = office_module.discover()
+
+    assert found.soffice == system_soffice
+    assert found.managed is False
+
+
 def test_office_prefers_managed_module(monkeypatch, tmp_path: Path):
     from openconvert.core.office import discover
 
@@ -307,6 +349,9 @@ def test_office_prefers_managed_module(monkeypatch, tmp_path: Path):
     soffice = tools / "libreoffice" / "program" / f"soffice{EXE}"
     soffice.parent.mkdir(parents=True)
     soffice.write_bytes(b"managed")
+    # 遮蔽系統引擎：模組只在系統沒有時使用
+    monkeypatch.setattr("openconvert.core.office.shutil.which", lambda name: None)
+    monkeypatch.setattr("openconvert.core.office._candidate_paths", lambda: iter(()))
 
     found = discover()
 

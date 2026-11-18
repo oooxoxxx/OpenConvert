@@ -36,12 +36,13 @@ def app_dir() -> Path:
 
 
 def tools_dir() -> Path:
-    """放置外部工具／引擎模組的目錄（``tools/``）。
-
-    預設在應用程式旁邊；若那個位置不可寫（例如安裝在 Program Files），
-    模組管理員會退回到 :func:`user_modules_dir`。
-    """
+    """舊版引擎位置（0.4.0 相容；使用者也可以手動放執行檔）。"""
     return app_dir() / "tools"
+
+
+def modules_dir() -> Path:
+    """引擎模組目錄（0.5.0 起）：程式旁的 ``modules/``，內容視為暫存、可隨時刪除重下。"""
+    return app_dir() / "modules"
 
 
 def user_modules_dir() -> Path:
@@ -53,7 +54,7 @@ def user_modules_dir() -> Path:
 
 def module_search_dirs() -> tuple[Path, ...]:
     """模組可能被安裝的位置，順序即優先順序。"""
-    return (tools_dir(), user_modules_dir())
+    return (modules_dir(), tools_dir(), user_modules_dir())
 
 
 def find_asset(*parts: str) -> Path | None:

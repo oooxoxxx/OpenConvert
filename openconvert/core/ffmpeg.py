@@ -101,7 +101,10 @@ def _search_path(name: str) -> Path | None:
 
 
 def locate(name: str, override: str | None = None) -> Path | None:
-    """依序尋找：使用者指定 → 隨附工具 → 系統 PATH → 常見安裝位置。"""
+    """依序尋找：使用者指定 → **系統安裝**（PATH／常見位置）→ 模組目錄。
+
+    系統已安裝的引擎優先使用，不下載模組；模組只在系統沒有時才需要。
+    """
     if override:
         candidate = Path(override).expanduser()
         if candidate.is_dir():
@@ -109,10 +112,13 @@ def locate(name: str, override: str | None = None) -> Path | None:
         if candidate.is_file():
             return candidate
         return None
+    found = _search_path(name)
+    if found is not None:
+        return found
     for candidate in _candidates(name):
         if candidate.is_file():
             return candidate
-    return _search_path(name)
+    return None
 
 
 def discover(ffmpeg_override: str | None = None, ffprobe_override: str | None = None) -> FFmpegTools:

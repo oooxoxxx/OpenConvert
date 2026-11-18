@@ -41,6 +41,14 @@
       "homepage": "https://www.libreoffice.org/",
       "source": "https://download.documentfoundation.org/libreoffice/stable/",
       "source_page": "https://www.libreoffice.org/about-us/licenses/",
+      "build": {
+        "windows-x64": {
+          "version": "26.2.7",
+          "origin_url": "https://download.documentfoundation.org/libreoffice/stable/26.2.7/win/x86_64/LibreOffice_26.2.7_Win_x86-64.msi",
+          "origin_sha256": "480fecf759fc6393bd614fbf43753eb95a8198fc1a065d41b727e3b664cd1e59",
+          "origin_size": 373121024
+        }
+      },
       "targets": {
         "windows-x64": {
           "version": "26.2.7",

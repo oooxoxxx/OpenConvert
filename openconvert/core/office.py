@@ -88,7 +88,10 @@ def is_managed(path: Path | None) -> bool:
 
 
 def locate(override: str | None = None) -> Path | None:
-    """依序尋找：使用者指定 → 已安裝模組／tools/ → 系統 PATH → 常見安裝位置。"""
+    """依序尋找：使用者指定 → **系統安裝**（PATH／常見位置）→ 模組目錄。
+
+    系統已安裝的 LibreOffice 優先使用，不下載模組；模組只在系統沒有時才需要。
+    """
     if override:
         candidate = Path(override).expanduser()
         if candidate.is_file():
@@ -96,14 +99,14 @@ def locate(override: str | None = None) -> Path | None:
         found = shutil.which(override)
         return Path(found) if found else None
 
-    for candidate in _managed_candidates():
-        if candidate.is_file():
-            return candidate
-
     found = shutil.which("soffice") or shutil.which("libreoffice")
     if found:
         return Path(found)
     for candidate in _candidate_paths():
+        if candidate.is_file():
+            return candidate
+
+    for candidate in _managed_candidates():
         if candidate.is_file():
             return candidate
     return None
@@ -117,20 +120,32 @@ def discover(override: str | None = None) -> OfficeTools:
 def version_of(binary: Path | None) -> str | None:
     if binary is None:
         return None
-    try:
-        out = subprocess.run(
-            [str(binary), "--version"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            creationflags=CREATE_NO_WINDOW,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    lines = (out.stdout or "").strip().splitlines()
-    return lines[0].strip() if lines else None
+    for candidate in _version_binaries(binary):
+        try:
+            out = subprocess.run(
+                [str(candidate), "--version"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        lines = (out.stdout or "").strip().splitlines()
+        if lines:
+            return lines[0].strip()
+    return None
+
+
+def _version_binaries(binary: Path) -> tuple[Path, ...]:
+    """Windows 的 ``soffice.exe --version`` 沒有輸出，要改問 ``soffice.com``。"""
+    if sys.platform == "win32" and binary.name.lower() == "soffice.exe":
+        console = binary.with_name("soffice.com")
+        if console.is_file():
+            return (console, binary)
+    return (binary,)
 
 
 def convert_to(

@@ -28,7 +28,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from .errors import ConversionCancelled, ModuleError
-from .resources import module_search_dirs, tools_dir, user_modules_dir
+from .resources import module_search_dirs, modules_dir, user_modules_dir
 
 ProgressFn = Callable[[float, str], None]
 CancelledFn = Callable[[], bool]
@@ -160,11 +160,15 @@ def _ensure_writable(base: Path) -> bool:
 
 
 def target_base() -> Path:
-    """回傳第一個可寫的模組安裝基底目錄；都不可寫時回傳 ``tools/``（安裝時會報錯）。"""
-    for base in module_search_dirs():
+    """回傳第一個可寫的模組安裝基底目錄；都不可寫時回傳 ``modules/``（安裝時會報錯）。
+
+    模組視為暫存（可隨時刪除重下），因此不再安裝到舊的 ``tools/``；
+    但 ``tools/`` 仍會被 :func:`installed_dir` 搜尋，0.4.0 裝過的引擎不需重裝。
+    """
+    for base in (modules_dir(), user_modules_dir()):
         if _ensure_writable(base):
             return base
-    return tools_dir()
+    return modules_dir()
 
 
 def install_dir(module_id: str) -> Path:
@@ -252,20 +256,33 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _download(spec: ModuleSpec, progress: ProgressFn, cancelled: CancelledFn | None) -> Path:
-    cache = cache_dir() / Path(spec.url).name
-    if cache.exists() and (not spec.sha256 or _sha256(cache) == spec.sha256):
+def download_file(
+    url: str,
+    sha256: str,
+    *,
+    size: int = 0,
+    name: str | None = None,
+    label: str = "",
+    progress: ProgressFn | None = None,
+    cancelled: CancelledFn | None = None,
+) -> Path:
+    """下載單一檔案並驗證 SHA-256；快取命中時不重抓。供模組安裝與建置腳本共用。"""
+    progress = progress or (lambda *_args: None)
+    cancelled = cancelled or (lambda: False)
+    filename = name or Path(url).name
+    cache = cache_dir() / filename
+    if cache.exists() and (not sha256 or _sha256(cache) == sha256):
         progress(0.55, f"使用快取（{_human(cache.stat().st_size)}）")
         return cache
 
     partial = cache.with_suffix(cache.suffix + ".part")
-    request = Request(spec.url, headers={"User-Agent": USER_AGENT})
+    request = Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urlopen(request, timeout=60) as response, partial.open("wb") as handle:
-            total = int(response.headers.get("Content-Length") or spec.size or 0)
+            total = int(response.headers.get("Content-Length") or size or 0)
             received = 0
             while True:
-                if cancelled and cancelled():
+                if cancelled():
                     raise ConversionCancelled("已取消下載")
                 block = response.read(CHUNK)
                 if not block:
@@ -286,18 +303,30 @@ def _download(spec: ModuleSpec, progress: ProgressFn, cancelled: CancelledFn | N
     except (URLError, OSError) as exc:
         partial.unlink(missing_ok=True)
         raise ModuleError(
-            f"無法下載「{spec.label}」：{exc}\n"
-            "請確認網路連線後重試；沒有網路時可以改用 Full 版本或自行放置 tools/。"
+            f"無法下載「{label or filename}」：{exc}\n"
+            "請確認網路連線後重試；沒有網路時可以自行安裝系統版引擎，或把檔案放進模組資料夾。"
         ) from exc
 
-    if spec.sha256 and _sha256(partial) != spec.sha256:
+    if sha256 and _sha256(partial) != sha256:
         partial.unlink(missing_ok=True)
         raise ModuleError(
-            f"下載的「{spec.label}」SHA-256 驗證失敗，已中止安裝。\n"
+            f"下載的「{label or filename}」SHA-256 驗證失敗，已中止安裝。\n"
             "這可能是來源檔案變動或下載不完整；請重試，或向專案回報。"
         )
     partial.replace(cache)
     return cache
+
+
+def _download(spec: ModuleSpec, progress: ProgressFn, cancelled: CancelledFn | None) -> Path:
+    return download_file(
+        spec.url,
+        spec.sha256,
+        size=spec.size,
+        name=Path(spec.url).name,
+        label=spec.label,
+        progress=progress,
+        cancelled=cancelled,
+    )
 
 
 def _human(num_bytes: float) -> str:
@@ -528,6 +557,7 @@ __all__ = [
     "ModuleState",
     "all_modules",
     "download_archive",
+    "download_file",
     "get_module",
     "install",
     "installed_dir",
