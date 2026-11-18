@@ -30,10 +30,10 @@ jobs:
       matrix:
         include:
           - target: win64
-            image: ghcr.io/btbn/ffmpeg-builder/win64-gpl:latest
+            image: ghcr.io/btbn/ffmpeg-builds/win64-gpl:latest
             pack: zip
           - target: linux64
-            image: ghcr.io/btbn/ffmpeg-builder/linux64-gpl:latest
+            image: ghcr.io/btbn/ffmpeg-builds/linux64-gpl:latest
             pack: tar.gz
     steps:
       - uses: actions/checkout@v7
