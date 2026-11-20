@@ -9,9 +9,11 @@ from __future__ import annotations
 import csv
 import io
 import json
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 import yaml
 
@@ -25,9 +27,16 @@ try:  # Python 3.11+ 內建；較舊版本由 tomli 提供
 except ModuleNotFoundError:  # pragma: no cover - 僅舊版 Python
     import tomli as tomllib  # type: ignore[no-redef]
 
-TABULAR_EXTENSIONS = frozenset({"csv", "tsv", "xlsx", "xlsm"})
+TABULAR_EXTENSIONS = frozenset({"csv", "tsv", "xlsx", "xlsm", "ods"})
 STRUCTURED_EXTENSIONS = frozenset({"json", "yaml", "yml", "toml"})
 CSV_DELIMITERS = {"csv": ",", "tsv": "\t"}
+
+_ODS_TABLE_NS = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+_ODS_OFFICE_NS = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+_ODS_TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+
+#: ODS 的重複儲存格上限，避免尾端大量空儲存格拖垮解析
+_ODS_MAX_REPEAT = 1000
 
 
 # --------------------------------------------------------------------------- 讀取
@@ -108,6 +117,73 @@ def _read_xlsx(path: Path, sheet: str | None) -> tuple[list[str], list[list[Any]
     return table_from_rows(rows)
 
 
+def _read_ods(path: Path, sheet: str | None) -> tuple[list[str], list[list[Any]]]:
+    """讀取 OpenDocument 試算表（.ods）。
+
+    ODS 本質是 ZIP + content.xml；這裡直接解析 XML，不依賴 LibreOffice，
+    讓「資料 → CSV/JSON」在沒有安裝引擎的機器上也能用。
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            content = archive.read("content.xml")
+    except (zipfile.BadZipFile, KeyError, OSError) as exc:
+        raise ConversionError(f"「{path.name}」不是有效的 ODS 檔案。", detail=str(exc)) from exc
+
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError as exc:
+        raise ConversionError(f"「{path.name}」的 content.xml 無法解析：{exc}") from exc
+
+    tables = root.iter(f"{{{_ODS_TABLE_NS}}}table")
+    worksheet = None
+    for table in tables:
+        if sheet is None or table.get(f"{{{_ODS_TABLE_NS}}}name") == sheet:
+            worksheet = table
+            break
+    if worksheet is None:
+        names = [t.get(f"{{{_ODS_TABLE_NS}}}name") or "?" for t in root.iter(f"{{{_ODS_TABLE_NS}}}table")]
+        raise InvalidInputError(
+            f"「{path.name}」沒有工作表「{sheet}」。可用的工作表：{'、'.join(names) or '（無）'}"
+        )
+
+    rows: list[list[Any]] = []
+    for row in worksheet.iter(f"{{{_ODS_TABLE_NS}}}table-row"):
+        row_repeat = min(int(row.get(f"{{{_ODS_TABLE_NS}}}number-rows-repeated") or 1), _ODS_MAX_REPEAT)
+        cells: list[Any] = []
+        for cell in row:
+            if not cell.tag.endswith("}table-cell") and not cell.tag.endswith("}covered-table-cell"):
+                continue
+            repeat = min(int(cell.get(f"{{{_ODS_TABLE_NS}}}number-columns-repeated") or 1), _ODS_MAX_REPEAT)
+            value = _ods_cell_value(cell)
+            if repeat > 0:
+                cells.extend([value] * repeat)
+        rows.extend([list(cells)] * row_repeat)
+    return table_from_rows(rows)
+
+
+def _ods_cell_value(cell: ET.Element) -> Any:
+    value_type = cell.get(f"{{{_ODS_OFFICE_NS}}}value-type")
+    if value_type in ("float", "percentage", "currency"):
+        raw = cell.get(f"{{{_ODS_OFFICE_NS}}}value")
+        try:
+            return float(raw) if raw is not None else _ods_text(cell)
+        except ValueError:
+            return _ods_text(cell)
+    if value_type == "boolean":
+        return "TRUE" if cell.get(f"{{{_ODS_OFFICE_NS}}}boolean-value") == "true" else "FALSE"
+    if value_type == "date":
+        return cell.get(f"{{{_ODS_OFFICE_NS}}}date-value") or _ods_text(cell)
+    if value_type == "time":
+        return cell.get(f"{{{_ODS_OFFICE_NS}}}time-value") or _ods_text(cell)
+    return _ods_text(cell)
+
+
+def _ods_text(cell: ET.Element) -> str:
+    parts = ["".join(node.itertext()) for node in cell.iter(f"{{{_ODS_TEXT_NS}}}p")]
+    text = "\n".join(part for part in parts if part)
+    return text if text else "".join(cell.itertext())
+
+
 def _read_structured(path: Path, extension: str) -> Any:
     try:
         text = read_text(path)
@@ -132,6 +208,8 @@ def load_source(path: Path, sheet: str | None = None) -> tuple[str, Any]:
     if extension in TABULAR_EXTENSIONS:
         if extension in CSV_DELIMITERS:
             header, rows = _read_csv(path, extension)
+        elif extension == "ods":
+            header, rows = _read_ods(path, sheet)
         else:
             header, rows = _read_xlsx(path, sheet)
         return "table", (header, rows)

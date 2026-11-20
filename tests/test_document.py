@@ -68,6 +68,28 @@ def test_wrong_source_extension_is_rejected(tools, docx_file: Path):
         run_conversion([docx_file], "md-html", tools)
 
 
+def test_markdown_to_docx(tools, office_tools, md_file: Path, tmp_path: Path):
+    from docx import Document as ReadDocx
+
+    require_office(office_tools)
+    _job, outputs = run_conversion([md_file], "md-docx", tools, output_dir=tmp_path / "out")
+
+    document = ReadDocx(str(outputs[0]))
+    text = "\n".join(p.text for p in document.paragraphs)
+    assert "主標題" in text
+
+
+def test_html_to_docx(tools, office_tools, html_file: Path, tmp_path: Path):
+    require_office(office_tools)
+    _job, outputs = run_conversion([html_file], "html-docx", tools, output_dir=tmp_path / "out")
+
+    from docx import Document as ReadDocx
+
+    document = ReadDocx(str(outputs[0]))
+    text = "\n".join(p.text for p in document.paragraphs)
+    assert "標題" in text
+
+
 def test_text_to_epub_is_handled_by_ebook_converter(tools, txt_file: Path, tmp_path: Path):
     # txt-pdf 需要 LibreOffice，但 epub 的入口在電子書轉換器
     _job, outputs = run_conversion([txt_file], "epub", tools, output_dir=tmp_path / "out")

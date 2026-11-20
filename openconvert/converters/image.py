@@ -34,6 +34,18 @@ FLATTEN_FORMATS = frozenset({"jpg", "bmp"})
 #: 可保留動畫的格式
 ANIMATED_FORMATS = frozenset({"image-gif", "webp", "apng"})
 
+#: 圖片旋轉角度 → PIL 轉置常數
+ROTATE_TRANSPOSE = {
+    90: Image.Transpose.ROTATE_270,  # 順時針 90 度
+    180: Image.Transpose.ROTATE_180,
+    270: Image.Transpose.ROTATE_90,  # 順時針 270 度
+}
+
+FLIP_TRANSPOSE = {
+    "h": Image.Transpose.FLIP_LEFT_RIGHT,
+    "v": Image.Transpose.FLIP_TOP_BOTTOM,
+}
+
 ICO_SIZES = ((16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256))
 
 
@@ -68,6 +80,28 @@ def _resize(image: Image.Image, max_dimension: int | None) -> Image.Image:
     ratio = max_dimension / longest
     size = (max(1, round(image.width * ratio)), max(1, round(image.height * ratio)))
     return image.resize(size, Image.Resampling.LANCZOS)
+
+
+def _crop_to_ratio(image: Image.Image, ratio_text: str) -> Image.Image:
+    """置中裁切成指定比例（例如 ``16:9``、``1:1``）；不放大。"""
+    try:
+        width_text, height_text = ratio_text.lower().replace("：", ":").split(":")
+        ratio = float(width_text.strip()) / float(height_text.strip())
+        if ratio <= 0:
+            raise ValueError
+    except (ValueError, ZeroDivisionError) as exc:
+        raise ConversionError(f"裁切比例格式不正確：「{ratio_text}」。例如 16:9、1:1") from exc
+
+    width, height = image.size
+    if width / height > ratio:  # 太寬 → 裁左右
+        new_width = min(width, max(1, round(height * ratio)))
+        new_height = height
+    else:  # 太高 → 裁上下
+        new_width = width
+        new_height = min(height, max(1, round(width / ratio)))
+    left = (width - new_width) // 2
+    top = (height - new_height) // 2
+    return image.crop((left, top, left + new_width, top + new_height))
 
 
 def _save(
@@ -133,6 +167,9 @@ class ImageConverter(Converter):
         if token == "img-pdf":
             return self._images_to_pdf(ctx, background, max_dimension)
 
+        if token in ("img-rotate", "img-flip", "img-crop"):
+            return self._transform_image(ctx, token, max_dimension)
+
         if token not in PIL_FORMATS:
             raise ConversionError(f"不支援的圖片格式：{token}")
 
@@ -158,6 +195,57 @@ class ImageConverter(Converter):
                 _save(work, dest, token, quality=quality, background=background, animated=False)
 
         ctx.report(0.95, "寫入完成")
+        self._verify(dest)
+        return [dest]
+
+    # ------------------------------------------------------------ 旋轉／翻轉／裁切
+
+    def _transform_image(self, ctx: ConvertContext, token: str, max_dimension: int | None) -> list[Path]:
+        """旋轉／翻轉／裁切：無損操作，輸出 PNG。
+
+        動畫圖片只處理第一格（會在記錄中說明）。
+        """
+        source = ctx.source
+        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        ctx.track(dest)
+        ctx.report(0.1, "讀取中")
+
+        with _open(source) as image:
+            if getattr(image, "n_frames", 1) > 1:
+                ctx.log("動畫圖片只會處理第一格，輸出為單張 PNG。")
+            work = ImageOps.exif_transpose(image)
+            work = _resize(work, max_dimension)
+
+            if token == "img-rotate":
+                raw = ctx.option("rotate_degrees", 90)
+                try:
+                    degrees = int(raw)
+                except (TypeError, ValueError) as exc:
+                    raise ConversionError(f"不支援的旋轉角度：{raw}（可用 90／180／270）") from exc
+                transpose = ROTATE_TRANSPOSE.get(degrees)
+                if transpose is None:
+                    raise ConversionError(f"不支援的旋轉角度：{degrees}（可用 90／180／270）")
+                work = work.transpose(transpose)
+            elif token == "img-flip":
+                axis = str(ctx.option("flip_axis", "h") or "h")
+                transpose = FLIP_TRANSPOSE.get(axis)
+                if transpose is None:
+                    raise ConversionError(f"不支援的翻轉方向：{axis}（可用 h／v）")
+                work = work.transpose(transpose)
+            else:  # img-crop
+                ratio_text = str(ctx.option("crop_ratio", "16:9") or "16:9")
+                work = _crop_to_ratio(work, ratio_text)
+
+            ctx.report(0.7, "寫入檔案")
+            params: dict[str, object] = {"optimize": True, "compress_level": 6}
+            if work.mode == "P":
+                work = work.convert("RGBA" if "transparency" in image.info else "RGB")
+            try:
+                work.save(dest, "PNG", **params)  # type: ignore[arg-type]
+            except (OSError, ValueError) as exc:
+                raise ConversionError(f"無法儲存為 PNG：{exc}", detail=str(exc)) from exc
+
+        ctx.report(1.0, "完成")
         self._verify(dest)
         return [dest]
 

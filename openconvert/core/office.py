@@ -154,9 +154,13 @@ def convert_to(
     dest: Path,
     extension: str,
     *,
+    filter_name: str = "",
     timeout: int = 240,
 ) -> Path:
     """用 LibreOffice 把 ``source`` 轉成 ``extension`` 並放到 ``dest``。
+
+    ``filter_name`` 可指定匯出濾器（例如從 HTML 轉 DOCX 需要明確的
+    ``MS Word 2007 XML``，否則 LO 會說「no export filter」）。
 
     每次都用獨立的暫時設定檔（UserInstallation），避免與已開啟的
     LibreOffice 或同時執行的其他工作互相鎖定。
@@ -168,6 +172,7 @@ def convert_to(
         )
 
     ext = extension.lower().lstrip(".")
+    convert_target = f"{ext}:{filter_name}" if filter_name else ext
     workdir = Path(tempfile.mkdtemp(prefix="openconvert-office-"))
     profile = workdir / "profile"
     outdir = workdir / "out"
@@ -183,7 +188,7 @@ def convert_to(
         "--nofirststartwizard",
         f"-env:UserInstallation={profile.as_uri()}",
         "--convert-to",
-        ext,
+        convert_target,
         "--outdir",
         str(outdir),
         str(source),

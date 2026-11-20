@@ -191,6 +191,18 @@
 目標，需同步更新 `ffmpeg-min.yml` 的啟用清單；剝離版 LibreOffice 移除了字典與範本，
 拼字檢查與範本功能不在我們的使用範圍。
 
+## 3.5 第七階段功能範圍（0.6.0）
+
+| # | 功能 | 做法 | 狀態 |
+|---|---|---|---|
+| 34 | 修復 ODS 資料轉換 | 直接解析 OpenDocument XML（不依賴 LibreOffice） | 已完成 |
+| 35 | EPUB → PDF | 章節組成 HTML → LibreOffice；純圖片 EPUB 走圖片組 PDF | 已完成 |
+| 36 | Markdown／HTML → DOCX | LibreOffice（需明確指定 `MS Word 2007 XML` 濾器） | 已完成 |
+| 37 | 影片合併／截取／旋轉翻轉 | FFmpeg concat 與 filter | 已完成 |
+| 38 | 音訊合併 | FFmpeg concat filter → MP3 | 已完成 |
+| 39 | 圖片旋轉／翻轉／裁切比例 | Pillow 無損操作 → PNG | 已完成 |
+| 40 | PDF 加密／解除密碼／壓縮 | pypdf（AES-128，無 cryptography 時退回 RC4-128） | 已完成 |
+
 ## 3.3 第五階段功能範圍（0.4.0）
 
 | # | 功能 | 做法 | 狀態 |

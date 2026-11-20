@@ -16,5 +16,6 @@ beautifulsoup4>=4.12
 markdownify>=0.11
 fonttools>=4.50
 brotli>=1.1
+cryptography>=42
 
 # 開發環境請安裝：pip install -r requirements-dev.txt

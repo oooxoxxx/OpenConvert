@@ -6,7 +6,7 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.5.0（Beta）**，共 82 個目標格式，已通過 194 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.6.0（Beta）**，共 **95 個目標格式**、77 種來源副檔名，已通過 217 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
 
 **引擎採模組化，系統優先**：電腦上已裝有 FFmpeg／LibreOffice 就直接用系統的、不下載；
 沒有時才下載**精簡版**模組（只含 OpenConvert 用得到的部分）。
@@ -29,14 +29,14 @@
 | 分類 | 內容 |
 | --- | --- |
 | 影片 | MP4／MKV／WebM／MOV／M4V／AVI／FLV／WMV／OGV／TS／GIF 動畫，可調整品質與最大解析度 |
-| 影片進階 | 抽出影格（PNG）、整批圖片合成 MP4 |
-| 音訊 | MP3／M4A／M4B／AAC／WAV／FLAC／OGG／Opus／AIFF／WMA／AC3，可從影片直接抽出音軌 |
-| 圖片 | PNG／JPEG／WebP／AVIF／HEIC／BMP／TIFF／ICO／GIF／APNG，支援透明背景、等比例縮放、多張合併為 PDF |
-| PDF | 合併、抽取頁碼範圍、每頁輸出 PNG／JPEG、抽出純文字、轉成 CBZ（可選解析度） |
-| 電子書 | CBZ ⇄ EPUB、CBZ → PDF、EPUB → 純文字、文字／Markdown／HTML → EPUB（自動分章） |
-| 文件 | Markdown ⇄ HTML、HTML／DOCX → 純文字或 Markdown、DOCX → HTML |
+| 影片編輯 | 合併多支影片、截取片段（起訖時間）、旋轉／翻轉、抽出影格（PNG）、整批圖片合成 MP4 |
+| 音訊 | MP3／M4A／M4B／AAC／WAV／FLAC／OGG／Opus／AIFF／WMA／AC3，可從影片抽音軌、合併多檔 |
+| 圖片 | PNG／JPEG／WebP／AVIF／HEIC／BMP／TIFF／ICO／GIF／APNG，旋轉／翻轉／裁切比例、透明背景、縮放、合併 PDF |
+| PDF | 合併、抽頁、轉 PNG／JPEG／文字／CBZ、加密（AES）、解除密碼、壓縮 |
+| 電子書 | CBZ ⇄ EPUB、CBZ → PDF、EPUB → PDF、EPUB → 純文字、文字／Markdown／HTML → EPUB（自動分章） |
+| 文件 | Markdown ⇄ HTML、Markdown／HTML → DOCX、HTML／DOCX → 純文字或 Markdown、DOCX → HTML |
 | Office（需 LibreOffice） | DOCX／DOC／ODT／RTF／PPTX／ODP → PDF，DOC ⇄ DOCX、DOCX ⇄ ODT、XLS ⇄ XLSX、XLSX ⇄ ODS |
-| 資料 | CSV／TSV／JSON／XLSX／YAML／TOML 互相轉換（可指定工作表） |
+| 資料 | CSV／TSV／JSON／XLSX／ODS／YAML／TOML 互相轉換（可指定工作表） |
 | 字幕 | SRT／WebVTT／ASS 互轉，自動辨識 Big5／GB18030 等編碼 |
 | 字型 | TTF／OTF／WOFF／WOFF2 互轉（無損） |
 | 壓縮 | 把整批檔案打包成 ZIP 或 tar.gz |

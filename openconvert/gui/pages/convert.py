@@ -213,6 +213,42 @@ class ConvertPage(QWidget):
         self._sheet_edit = QLineEdit()
         self._sheet_edit.setPlaceholderText("工作表名稱（留空表示第一個工作表）")
 
+        self._video_rotate_combo = QComboBox()
+        for label, value in (
+            ("順時針 90°", "90"),
+            ("180°", "180"),
+            ("順時針 270°", "270"),
+            ("水平翻轉", "h"),
+            ("垂直翻轉", "v"),
+        ):
+            self._video_rotate_combo.addItem(label, value)
+
+        self._img_rotate_combo = QComboBox()
+        for label, value in (("順時針 90°", 90), ("180°", 180), ("順時針 270°", 270)):
+            self._img_rotate_combo.addItem(label, value)
+
+        self._img_flip_combo = QComboBox()
+        self._img_flip_combo.addItem("水平翻轉", "h")
+        self._img_flip_combo.addItem("垂直翻轉", "v")
+
+        self._crop_combo = QComboBox()
+        for label, value in (
+            ("16:9", "16:9"),
+            ("4:3", "4:3"),
+            ("1:1（正方形）", "1:1"),
+            ("3:2", "3:2"),
+        ):
+            self._crop_combo.addItem(label, value)
+
+        self._split_start_edit = QLineEdit()
+        self._split_start_edit.setPlaceholderText("開始（秒或 1:30）")
+        self._split_end_edit = QLineEdit()
+        self._split_end_edit.setPlaceholderText("結束（秒或 1:30）")
+
+        self._pdf_password_edit = QLineEdit()
+        self._pdf_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._pdf_password_edit.setPlaceholderText("輸入密碼")
+
         self._pages_edit = QLineEdit()
         self._pages_edit.setPlaceholderText("例如 1-3,7（留空表示全部頁面）")
 
@@ -282,9 +318,44 @@ class ConvertPage(QWidget):
         grid.addWidget(self._sheet_edit, 5, 1, 1, 3)
         self._opt["sheet"] = (label_sheet, self._sheet_edit)
 
+        label_video_rotate = QLabel("影片旋轉")
+        label_video_rotate.setObjectName("Muted")
+        grid.addWidget(label_video_rotate, 6, 0)
+        grid.addWidget(self._video_rotate_combo, 6, 1)
+        label_crop = QLabel("裁切比例")
+        label_crop.setObjectName("Muted")
+        grid.addWidget(label_crop, 6, 2)
+        grid.addWidget(self._crop_combo, 6, 3)
+        self._opt["video_rotate"] = (label_video_rotate, self._video_rotate_combo)
+        self._opt["crop"] = (label_crop, self._crop_combo)
+
+        label_img_rotate = QLabel("圖片旋轉")
+        label_img_rotate.setObjectName("Muted")
+        grid.addWidget(label_img_rotate, 7, 0)
+        grid.addWidget(self._img_rotate_combo, 7, 1)
+        label_img_flip = QLabel("圖片翻轉")
+        label_img_flip.setObjectName("Muted")
+        grid.addWidget(label_img_flip, 7, 2)
+        grid.addWidget(self._img_flip_combo, 7, 3)
+        self._opt["img_rotate"] = (label_img_rotate, self._img_rotate_combo)
+        self._opt["img_flip"] = (label_img_flip, self._img_flip_combo)
+
+        label_split = QLabel("片段起訖")
+        label_split.setObjectName("Muted")
+        grid.addWidget(label_split, 8, 0)
+        grid.addWidget(self._split_start_edit, 8, 1)
+        grid.addWidget(self._split_end_edit, 8, 2, 1, 2)
+        self._opt["split"] = (label_split, self._split_start_edit, self._split_end_edit)
+
+        label_password = QLabel("PDF 密碼")
+        label_password.setObjectName("Muted")
+        grid.addWidget(label_password, 9, 0)
+        grid.addWidget(self._pdf_password_edit, 9, 1, 1, 3)
+        self._opt["pdf_password"] = (label_password, self._pdf_password_edit)
+
         label_output = QLabel("輸出資料夾")
         label_output.setObjectName("Muted")
-        grid.addWidget(label_output, 6, 0)
+        grid.addWidget(label_output, 10, 0)
         grid.addWidget(self._output_edit, 6, 1, 1, 1)
         grid.addWidget(output_browse, 6, 2)
         grid.addWidget(output_reset, 6, 3)
@@ -490,6 +561,12 @@ class ConvertPage(QWidget):
             "pages": token == "pdf-extract",
             "dpi": token in ("pdf-png", "pdf-jpg", "pdf-cbz"),
             "sheet": converter == "data" and self._has_sheet_source(),
+            "video_rotate": token == "video-rotate",
+            "crop": token == "img-crop",
+            "img_rotate": token == "img-rotate",
+            "img_flip": token == "img-flip",
+            "split": token == "video-split",
+            "pdf_password": token in ("pdf-encrypt", "pdf-decrypt"),
         }
         for key, widgets in self._opt.items():
             for widget in widgets:
@@ -512,6 +589,13 @@ class ConvertPage(QWidget):
             "video_fps": self._fps_spin.value(),
             "frame_seconds": 2.0,
             "sheet": self._sheet_edit.text().strip(),
+            "rotate_mode": self._video_rotate_combo.currentData() or "90",
+            "rotate_degrees": self._img_rotate_combo.currentData() or 90,
+            "flip_axis": self._img_flip_combo.currentData() or "h",
+            "crop_ratio": self._crop_combo.currentData() or "16:9",
+            "split_start": self._split_start_edit.text().strip(),
+            "split_end": self._split_end_edit.text().strip(),
+            "pdf_password": self._pdf_password_edit.text(),
         }
 
     def _replan(self) -> None:

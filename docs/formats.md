@@ -48,6 +48,9 @@
 | `wmv` | WMV 影片 | `.wmv` | FFmpeg | Windows Media 格式 |
 | `ogv` | OGV 影片 | `.ogv` | FFmpeg | Theora + Vorbis，開源容器 |
 | `ts` | TS 影片 | `.ts` | FFmpeg | H.264 + AAC，串流與錄影常用 |
+| `video-merge` | 合併影片 | `.mp4` | FFmpeg + 合併型 | 多支影片依序合併；解析度不同自動補邊重編碼 |
+| `video-split` | 截取影片片段 | `.mp4` | FFmpeg | 依起訖時間截取片段（重新編碼，切割點精準） |
+| `video-rotate` | 影片旋轉／翻轉 | `.mp4` | FFmpeg | 旋轉 90／180／270 度或水平／垂直翻轉 |
 | `video-gif` | GIF 動畫 | `.gif` | FFmpeg | 無聲動圖，建議縮小解析度 |
 | `video-frames` | 抽出影格（PNG） | `.png` | FFmpeg | 依指定影格率輸出 PNG，另存到新資料夾（多輸出） |
 
@@ -66,6 +69,7 @@
 | `aiff` | AIFF 音訊 | `.aiff` | FFmpeg | Apple 無壓縮音訊 |
 | `wma` | WMA 音訊 | `.wma` | FFmpeg | Windows Media 音訊 |
 | `ac3` | AC3 音訊 | `.ac3` | FFmpeg | 電影常用的環繞音效格式 |
+| `audio-merge` | 合併音訊 | `.mp3` | FFmpeg + 合併型 | 多個音訊檔接成一份 MP3；取樣率不同自動重採樣 |
 
 音訊目標同時接受影片來源，也就是可以直接「抽出音軌」。
 
@@ -83,6 +87,9 @@
 | `ico` | ICO 圖示 | `.ico` | — | Windows 圖示，輸出多種尺寸 |
 | `image-gif` | GIF 圖片 | `.gif` | — | 單格或動畫 GIF |
 | `apng` | APNG 動畫 | `.png` | — | 可保留動畫與透明的 PNG |
+| `img-rotate` | 圖片旋轉 | `.png` | — | 旋轉 90／180／270 度（動畫只處理第一格） |
+| `img-flip` | 圖片翻轉 | `.png` | — | 水平或垂直翻轉 |
+| `img-crop` | 圖片裁切比例 | `.png` | — | 置中裁切成指定比例（16:9／4:3／1:1／3:2） |
 | `images-video` | 圖片轉影片 | `.mp4` | FFmpeg + 合併型 | 整批圖片合成一支 MP4 |
 | `img-pdf` | 合併為 PDF | `.pdf` | 合併型 | 多張圖片合成一份 PDF |
 
@@ -99,6 +106,9 @@
 | `pdf-jpg` | PDF → JPEG | `.jpg` | — | 每頁輸出一張 JPEG（多輸出） |
 | `pdf-txt` | PDF → 純文字 | `.txt` | — | 抽出文字層；掃描檔沒有文字層時會回報明確錯誤 |
 | `pdf-cbz` | PDF → CBZ | `.cbz` | — | 每頁轉成 JPEG 後打包成漫畫壓縮檔 |
+| `pdf-encrypt` | PDF 加密 | `.pdf` | — | 加上開啟密碼（AES-128，無 cryptography 時退回 RC4-128） |
+| `pdf-decrypt` | PDF 解除密碼 | `.pdf` | — | 移除開啟密碼（需填入原密碼） |
+| `pdf-compress` | PDF 壓縮 | `.pdf` | — | 重寫內容串流並移除重複物件以縮小檔案 |
 
 頁碼範圍語法：`1-3,7`、`5`、`2-`（第 2 頁到最後）。超出範圍或格式錯誤會回報清楚的錯誤訊息。
 
@@ -110,6 +120,7 @@
 | `cbz` | CBZ 漫畫 | `.cbz` | 合併型（圖片時） | 可由 EPUB 或整批圖片產生 |
 | `book-pdf` | CBZ → PDF | `.pdf` | — | 把整本漫畫壓縮檔轉成 PDF |
 | `epub-txt` | EPUB → 純文字 | `.txt` | — | 依閱讀順序抽出文字，不保留排版 |
+| `epub-pdf` | EPUB → PDF | `.pdf` | LibreOffice | 整本 EPUB 排版成 PDF；純圖片漫畫 EPUB 走圖片組 PDF |
 
 EPUB 由本專案自行產生（`zipfile` + XHTML／OPF／NAV），不依賴 AGPL 授權的第三方 EPUB 函式庫。
 文字轉 EPUB 時會依 Markdown／HTML 的 H1／H2 標題分章，並產生目錄；純文字則以段落切分。
@@ -129,6 +140,8 @@ EPUB → CBZ 會依 spine 順序取出圖片；檔案損壞、不是 ZIP、或�
 | `docx-txt` | DOCX → 純文字 | `.txt` | — | 段落、清單與表格依序輸出 |
 | `docx-md` | DOCX → Markdown | `.md` | — | 標題、清單、粗斜體與表格 |
 | `docx-html` | DOCX → HTML | `.html` | — | 保留標題與段落結構 |
+| `md-docx` | Markdown → DOCX | `.docx` | LibreOffice | Markdown 排版成 Word 文件 |
+| `html-docx` | HTML → DOCX | `.docx` | LibreOffice | 網頁排版成 Word 文件 |
 | `md-pdf` | Markdown → PDF | `.pdf` | LibreOffice | 先轉 HTML 再排版成 PDF |
 | `html-pdf` | HTML → PDF | `.pdf` | LibreOffice | 網頁排版成 PDF |
 | `txt-pdf` | TXT → PDF | `.pdf` | LibreOffice | 純文字排版成 PDF |
@@ -203,10 +216,16 @@ OTF（CFF 輪廓）無法直接變成 TTF（TrueType 輪廓），遇到時會回
 | 影格率 | `video-frames`、`images-video` | 1–60 fps（預設 30；抽影格預設 1） |
 | 頁碼範圍 | `pdf-extract` | 例如 `1-3,7` |
 | PDF 解析度 | `pdf-png`、`pdf-jpg`、`pdf-cbz` | 72／150／300／600 DPI（預設 150） |
-| 工作表 | `data-*`（來源為 XLSX） | 指定工作表名稱，留空表示第一個工作表 |
+| 旋轉／翻轉 | `video-rotate` | 90／180／270 度或 h（水平）／v（垂直） |
+| 旋轉角度 | `img-rotate` | 90／180／270 度，輸出 PNG |
+| 翻轉方向 | `img-flip` | h（水平）或 v（垂直） |
+| 裁切比例 | `img-crop` | 16:9／4:3／1:1／3:2，置中裁切 |
+| 片段起訖 | `video-split` | 秒數或 `1:30`；結束必須晚於開始 |
+| PDF 密碼 | `pdf-encrypt`、`pdf-decrypt` | 加密或解除密碼用的密碼 |
+| 工作表 | `data-*`（來源為 ODS／XLSX） | 指定工作表名稱，留空表示第一個工作表 |
 | 輸出資料夾 | 全部 | 留空表示與來源檔案相同資料夾 |
 
-命令列的對應參數為 `--quality`、`--max-size`、`--fps`、`--frame-seconds`、`--pages`、`--dpi`、`--sheet`；
+命令列的對應參數為 `--quality`、`--max-size`、`--fps`、`--frame-seconds`、`--pages`、`--dpi`、`--sheet`、`--rotate`、`--flip`、`--crop`、`--start`、`--end`、`--pdf-password`；
 `--overwrite` 需明確指定才會覆蓋既有檔案，`--office` 可指定 soffice 執行檔路徑。
 
 ## 分組規則（合併型 vs 逐檔）

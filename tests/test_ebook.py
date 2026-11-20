@@ -156,6 +156,34 @@ def test_epub_without_text_raises_readable_error(tools, cbz_file: Path, tmp_path
     assert "沒有可抽取的文字" in excinfo.value.user_message
 
 
+def test_text_epub_to_pdf(tools, office_tools, txt_file: Path, tmp_path: Path):
+    from pypdf import PdfReader
+
+    from .conftest import require_office
+
+    require_office(office_tools)
+
+    _job, epub_outputs = run_conversion([txt_file], "epub", tools, output_dir=tmp_path / "a")
+    _job, pdf_outputs = run_conversion([epub_outputs[0]], "epub-pdf", tools, output_dir=tmp_path / "b")
+
+    reader = PdfReader(str(pdf_outputs[0]))
+    assert len(reader.pages) >= 1
+
+
+def test_cbz_epub_to_pdf_falls_back_to_images(tools, office_tools, cbz_file: Path, tmp_path: Path):
+    from pypdf import PdfReader
+
+    from .conftest import require_office
+
+    require_office(office_tools)
+
+    _job, epub_outputs = run_conversion([cbz_file], "epub", tools, output_dir=tmp_path / "a")
+    _job, pdf_outputs = run_conversion([epub_outputs[0]], "epub-pdf", tools, output_dir=tmp_path / "b")
+
+    # 純圖片漫畫 EPUB → 圖片組 PDF，頁數應等於漫畫頁數
+    assert len(PdfReader(str(pdf_outputs[0])).pages) == 3
+
+
 def test_cbz_to_pdf(tools, cbz_file: Path, tmp_path: Path):
     from pypdf import PdfReader
 

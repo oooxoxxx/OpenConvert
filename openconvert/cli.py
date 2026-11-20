@@ -41,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--fps", type=int, default=0, help="影格率（GIF、抽影格、圖片轉影片）")
     convert.add_argument("--frame-seconds", type=float, default=2.0, help="圖片轉影片時每張圖片停留的秒數")
     convert.add_argument("--sheet", default="", help="Excel 工作表名稱（留空表示使用第一個工作表）")
+    convert.add_argument("--rotate", default="", help="旋轉：90／180／270（圖片與影片）或 h／v（影片翻轉）")
+    convert.add_argument("--flip", default="", help="圖片翻轉：h（水平）或 v（垂直）")
+    convert.add_argument("--crop", default="", help="圖片裁切比例，例如 16:9、1:1")
+    convert.add_argument("--start", default="", help="截取影片的開始時間（秒或 1:30）")
+    convert.add_argument("--end", default="", help="截取影片的結束時間（秒或 1:30）")
+    convert.add_argument("--pdf-password", default="", help="PDF 加密／解除密碼用的密碼")
     convert.add_argument("--pages", default="", help="PDF 抽取頁碼，例如 1-3,7")
     convert.add_argument("--dpi", type=int, default=150, help="PDF 轉圖片的解析度")
     convert.add_argument("--overwrite", action="store_true", help="允許覆蓋同名輸出檔")
@@ -138,6 +144,7 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         return 2
 
     fps = max(0, args.fps)
+    rotate_raw = str(args.rotate or "").strip().lower()
     options = {
         "quality": args.quality,
         "quality_jpeg": 90,
@@ -149,6 +156,13 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         "video_fps": fps or 30,
         "frame_seconds": args.frame_seconds,
         "sheet": args.sheet,
+        "rotate_degrees": int(rotate_raw) if rotate_raw in ("90", "180", "270") else rotate_raw,
+        "rotate_mode": rotate_raw,
+        "flip_axis": str(args.flip or "").strip().lower(),
+        "crop_ratio": args.crop,
+        "split_start": args.start,
+        "split_end": args.end,
+        "pdf_password": args.pdf_password,
     }
 
     groups = plan_groups(spec, accepted)

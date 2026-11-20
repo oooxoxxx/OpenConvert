@@ -61,6 +61,38 @@ def test_subtitle_and_font_targets():
     assert "font-woff2" in {spec.token for spec in available_targets([Path("a.ttf")])}
 
 
+def test_merge_targets_require_multiple_files():
+    single = {spec.token for spec in available_targets([Path("a.mp4")])}
+    assert "video-merge" not in single
+    pair = {spec.token for spec in available_targets([Path("a.mp4"), Path("b.mp4")])}
+    assert "video-merge" in pair
+
+    single_audio = {spec.token for spec in available_targets([Path("a.mp3")])}
+    assert "audio-merge" not in single_audio
+    pair_audio = {spec.token for spec in available_targets([Path("a.mp3"), Path("b.mp3")])}
+    assert "audio-merge" in pair_audio
+
+
+def test_new_operation_targets():
+    single_video = {spec.token for spec in available_targets([Path("a.mp4")])}
+    assert {"video-split", "video-rotate"} <= single_video
+
+    single_image = {spec.token for spec in available_targets([Path("a.png")])}
+    assert {"img-rotate", "img-flip", "img-crop"} <= single_image
+
+    single_pdf = {spec.token for spec in available_targets([Path("a.pdf")])}
+    assert {"pdf-encrypt", "pdf-decrypt", "pdf-compress"} <= single_pdf
+
+    single_epub = {spec.token for spec in available_targets([Path("a.epub")])}
+    assert "epub-pdf" in single_epub
+
+    single_md = {spec.token for spec in available_targets([Path("a.md")])}
+    assert "md-docx" in single_md
+
+    single_html = {spec.token for spec in available_targets([Path("a.html")])}
+    assert "html-docx" in single_html
+
+
 def test_text_can_become_epub():
     tokens = {spec.token for spec in available_targets([Path("a.txt")])}
     assert "epub" in tokens

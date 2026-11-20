@@ -8,14 +8,17 @@ from __future__ import annotations
 
 import io
 import re
+import tempfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from bs4 import BeautifulSoup
 from PIL import Image
 
+from ..core import office
 from ..core.errors import ConversionError
 from ..core.paths import resolve_output
 from ..core.sorting import natural_key
@@ -81,6 +84,9 @@ class EbookConverter(Converter):
 
         if token == "epub-txt":
             return self._write_plain_text(ctx)
+
+        if token == "epub-pdf":
+            return self._epub_to_pdf(ctx)
 
         raise ConversionError(f"不支援的電子書格式：{token}")
 
@@ -391,6 +397,84 @@ class EbookConverter(Converter):
         dest = resolve_output(source, ctx.output_dir, "txt", overwrite=ctx.overwrite)
         ctx.track(dest)
         write_text(dest, content + "\n")
+        ctx.report(1.0, "完成")
+        self._verify(dest)
+        return [dest]
+
+    # ------------------------------------------------------------ EPUB → PDF
+
+    def _epub_to_pdf(self, ctx: ConvertContext) -> list[Path]:
+        """EPUB → PDF：章節組成單一 HTML，交由 LibreOffice 排版成 PDF。
+
+        純圖片漫畫 EPUB 走圖片組 PDF（與 CBZ → PDF 相同流程）。
+        """
+        source = ctx.source
+        tools = ctx.office_tools()
+        if not tools.available:
+            raise ConversionError(
+                "找不到 LibreOffice。EPUB → PDF 需要排版，請安裝 LibreOffice，或到「設定」指定 soffice 路徑。"
+            )
+
+        with tempfile.TemporaryDirectory(prefix="openconvert-epub-") as folder:
+            root = Path(folder)
+            try:
+                with zipfile.ZipFile(source) as archive:
+                    for member in archive.namelist():
+                        if member.endswith("/"):
+                            continue
+                        target = root / member
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(archive.read(member))
+                    hrefs = self._epub_spine_hrefs(archive)
+            except (zipfile.BadZipFile, OSError) as exc:
+                raise ConversionError(f"「{source.name}」不是有效的 EPUB 檔案。", detail=str(exc)) from exc
+
+            docs = [href for href in hrefs if Path(href).suffix.lower() in (".xhtml", ".html", ".htm")]
+            if not docs:
+                # 純圖片漫畫 EPUB → 直接用圖片組 PDF
+                return self._write_pdf(ctx, self._collect_pages(ctx))
+
+            chapters: list[str] = []
+            has_text = False
+            for href in docs:
+                doc_path = root / href
+                if not doc_path.exists():
+                    continue
+                soup = BeautifulSoup(doc_path.read_bytes(), "html.parser")
+                for tag in soup(["script"]):
+                    tag.decompose()
+                body = soup.body.decode_contents() if soup.body else str(soup)
+                if not body.strip():
+                    continue
+                # 圖片路徑改成絕對路徑，LibreOffice 才找得到解壓後的圖檔
+                for img in soup.find_all("img"):
+                    src = img.get("src")
+                    if not src:
+                        continue
+                    resolved = (doc_path.parent / src).resolve()
+                    if resolved.exists():
+                        img["src"] = resolved.as_uri()
+                body = soup.body.decode_contents() if soup.body else str(soup)
+                # 只看 body 有沒有文字（head 的 <title> 不算），否則純圖片漫畫會誤判
+                if BeautifulSoup(body, "html.parser").get_text(strip=True):
+                    has_text = True
+                chapters.append(body)
+
+            if not chapters or not has_text:
+                # 全是圖片（漫畫 EPUB）→ 圖片組 PDF，頁數才會正確
+                return self._write_pdf(ctx, self._collect_pages(ctx))
+
+            # 分頁符號放在章節 div 本身；空 div 會被 LO 的 HTML 匯入丟掉
+            separated = [f'<div style="page-break-before: always">{body}</div>' for body in chapters]
+            body = "\n".join(separated)
+            html_path = root / "_openconvert.html"
+            write_text(html_path, markup.html_document(body, source.stem))
+
+            dest = resolve_output(source, ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+            ctx.track(dest)
+            ctx.report(0.4, "排版中")
+            office.convert_to(tools, html_path, dest, "pdf")
+
         ctx.report(1.0, "完成")
         self._verify(dest)
         return [dest]

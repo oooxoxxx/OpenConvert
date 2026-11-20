@@ -234,6 +234,16 @@ class DocumentConverter(Converter):
             body = markup.markdown_to_html(docx_to_markdown(source))
             return self._write_html(ctx, markup.html_document(body, source.stem))
 
+        if token == "md-docx":
+            _require_ext(ctx, MARKDOWN_EXTENSIONS)
+            body = markup.markdown_to_html(read_text(source))
+            return self._office_from_html(ctx, "docx", body)
+
+        if token == "html-docx":
+            _require_ext(ctx, HTML_EXTENSIONS)
+            raw = read_text(source)
+            return self._office_from_html(ctx, "docx", markup.html_body(raw), markup.html_styles(raw))
+
         if token == "md-pdf":
             _require_ext(ctx, MARKDOWN_EXTENSIONS)
             body = markup.markdown_to_html(read_text(source))
@@ -290,6 +300,20 @@ class DocumentConverter(Converter):
         return self._finish(ctx, dest)
 
     def _html_to_pdf(self, ctx: ConvertContext, body: str, extra_head: str = "") -> list[Path]:
+        return self._office_from_html(ctx, "pdf", body, extra_head)
+
+    def _office_from_html(
+        self,
+        ctx: ConvertContext,
+        extension: str,
+        body: str,
+        extra_head: str = "",
+    ) -> list[Path]:
+        """把 HTML 內容交給 LibreOffice 排版成指定格式（pdf／docx…）。
+
+        HTML 在 LibreOffice 屬於 Writer/Web 模組，匯出 DOCX 必須明確指定
+        ``MS Word 2007 XML`` 濾器，否則會出現「no export filter」。
+        """
         tools = ctx.office_tools()
         if not tools.available:
             raise ConversionError(
@@ -298,14 +322,15 @@ class DocumentConverter(Converter):
             )
 
         source = ctx.source
-        dest = resolve_output(source, ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+        dest = resolve_output(source, ctx.output_dir, extension, overwrite=ctx.overwrite)
         ctx.track(dest)
 
+        filter_name = "MS Word 2007 XML" if extension.lower() == "docx" else ""
         ctx.report(0.05, "排版中")
         with tempfile.TemporaryDirectory(prefix="openconvert-doc-") as folder:
             html_path = Path(folder) / f"{source.stem or 'document'}.html"
             write_text(html_path, markup.html_document(body, source.stem, extra_head))
-            office.convert_to(tools, html_path, dest, "pdf")
+            office.convert_to(tools, html_path, dest, extension, filter_name=filter_name)
         return self._finish(ctx, dest)
 
     @staticmethod

@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError
 
 from ..core.errors import ConversionError, InvalidInputError
-from ..core.paths import resolve_output, resolve_output_dir
+from ..core.paths import human_size, resolve_output, resolve_output_dir
 from ..core.textio import write_text
 from .base import ConvertContext, Converter
 
@@ -71,12 +71,16 @@ def parse_page_ranges(text: str, page_count: int) -> list[int]:
     return indices
 
 
-def _open_reader(path: Path) -> PdfReader:
+def _open_reader(path: Path, password: str = "") -> PdfReader:
     try:
         reader = PdfReader(str(path))
         # 空密碼可以開啟的檔案很常見（僅限制編輯），先嘗試解密
-        if reader.is_encrypted and not reader.decrypt(""):
-            raise ConversionError(f"「{path.name}」有密碼保護，請先解除密碼後再轉換。")
+        if reader.is_encrypted:
+            if reader.decrypt(password or ""):
+                return reader
+            if password:
+                raise ConversionError(f"「{path.name}」的密碼不正確，無法開啟。")
+            raise ConversionError(f"「{path.name}」有密碼保護，請在選項中填入密碼，或先解除密碼後再轉換。")
         return reader
     except PdfReadError as exc:
         raise ConversionError(f"無法讀取「{path.name}」，PDF 可能已損毀。", detail=str(exc)) from exc
@@ -102,6 +106,12 @@ class PdfConverter(Converter):
             return self._to_text(ctx)
         if token == "pdf-cbz":
             return self._to_cbz(ctx)
+        if token == "pdf-encrypt":
+            return self._encrypt(ctx)
+        if token == "pdf-decrypt":
+            return self._decrypt(ctx)
+        if token == "pdf-compress":
+            return self._compress(ctx)
         raise ConversionError(f"不支援的 PDF 操作：{token}")
 
     # ------------------------------------------------------------ 合併
@@ -301,6 +311,116 @@ class PdfConverter(Converter):
 
         if not written:
             raise ConversionError("PDF 轉 CBZ 沒有產生任何頁面。")
+        ctx.report(1.0, "完成")
+        self._verify(dest)
+        return [dest]
+
+    # ------------------------------------------------------------ 加密／解密／壓縮
+
+    def _encrypt(self, ctx: ConvertContext) -> list[Path]:
+        password = str(ctx.option("pdf_password", "") or "")
+        if not password:
+            raise InvalidInputError("請在選項中填入 PDF 密碼。")
+
+        source = ctx.source
+        reader = _open_reader(source)
+        writer = PdfWriter()
+        try:
+            writer.append(reader)
+            try:
+                writer.encrypt(user_password=password, owner_password=password, algorithm="AES-128")
+            except Exception as exc:  # 沒有 cryptography 套件時退回相容性較低的 RC4
+                ctx.log(f"AES 加密不可用（{exc}），改用 RC4-128。")
+                writer.encrypt(user_password=password, owner_password=password, algorithm="RC4-128")
+            ctx.report(0.9, "寫入檔案")
+            dest = resolve_output(
+                source.with_name(f"{source.stem}_encrypted"),
+                ctx.output_dir,
+                "pdf",
+                overwrite=ctx.overwrite,
+            )
+            ctx.track(dest)
+            with dest.open("wb") as handle:
+                writer.write(handle)
+        finally:
+            writer.close()
+
+        # 驗證：用密碼重新開啟
+        check = PdfReader(str(dest))
+        if not (check.is_encrypted and check.decrypt(password)):
+            dest.unlink(missing_ok=True)
+            raise ConversionError("加密後的 PDF 無法用密碼開啟，已中止。")
+
+        ctx.report(1.0, "完成")
+        self._verify(dest)
+        return [dest]
+
+    def _decrypt(self, ctx: ConvertContext) -> list[Path]:
+        password = str(ctx.option("pdf_password", "") or "")
+        source = ctx.source
+        reader = _open_reader(source, password)
+        if not reader.is_encrypted:
+            raise ConversionError(f"「{source.name}」本來就沒有密碼保護。")
+
+        writer = PdfWriter()
+        try:
+            writer.append(reader)
+            ctx.report(0.9, "寫入檔案")
+            dest = resolve_output(
+                source.with_name(f"{source.stem}_decrypted"),
+                ctx.output_dir,
+                "pdf",
+                overwrite=ctx.overwrite,
+            )
+            ctx.track(dest)
+            with dest.open("wb") as handle:
+                writer.write(handle)
+        finally:
+            writer.close()
+
+        check = PdfReader(str(dest))
+        if check.is_encrypted:
+            dest.unlink(missing_ok=True)
+            raise ConversionError("解除密碼後的 PDF 仍受保護，已中止。")
+
+        ctx.report(1.0, "完成")
+        self._verify(dest)
+        return [dest]
+
+    def _compress(self, ctx: ConvertContext) -> list[Path]:
+        source = ctx.source
+        reader = _open_reader(source)
+        writer = PdfWriter()
+        try:
+            writer.append(reader)
+            ctx.report(0.3, "壓縮內容串流")
+            for index, page in enumerate(writer.pages):
+                ctx.check_cancel()
+                ctx.report(0.3 + index / max(1, len(writer.pages)) * 0.5, f"第 {index + 1} 頁")
+                try:
+                    page.compress_content_streams()
+                except Exception as exc:  # 部分頁面（掃描圖片）壓不動就保留原樣
+                    ctx.log(f"第 {index + 1} 頁無法再壓縮：{exc}")
+            try:
+                writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+            except Exception as exc:  # 部分檔案結構特殊時保留原樣
+                ctx.log(f"重複物件清理略過：{exc}")
+
+            ctx.report(0.9, "寫入檔案")
+            dest = resolve_output(
+                source.with_name(f"{source.stem}_compressed"),
+                ctx.output_dir,
+                "pdf",
+                overwrite=ctx.overwrite,
+            )
+            ctx.track(dest)
+            with dest.open("wb") as handle:
+                writer.write(handle)
+        finally:
+            writer.close()
+
+        before, after = source.stat().st_size, dest.stat().st_size
+        ctx.log(f"壓縮結果：{human_size(before)} → {human_size(after)}")
         ctx.report(1.0, "完成")
         self._verify(dest)
         return [dest]
