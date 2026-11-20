@@ -1,7 +1,7 @@
 """轉換佇列表格。
 
 每一列對應一個 :class:`~openconvert.core.job.Job`。表格只負責顯示，
-不執行任何轉換邏輯；操作按鈕以訊號回報給頁面。
+不執行任何轉換邏輯；操作按鈕與每列的目標下拉以訊號回報給頁面。
 """
 
 from __future__ import annotations
@@ -12,8 +12,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QHBoxLayout,
     QHeaderView,
+    QMenu,
     QProgressBar,
     QPushButton,
     QTableWidget,
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from ...core.job import Job, JobStatus
 from ...core.kinds import kind_label
+from ...core.targets import TargetSpec
 
 _HEADERS = ("檔案", "類型", "目標", "狀態", "進度", "操作")
 
@@ -34,13 +37,17 @@ class _Row:
     job: Job
     progress: QProgressBar
     button: QPushButton
+    combo: QComboBox | None = None
 
 
 class JobTable(QTableWidget):
-    """顯示工作清單並回報使用者的取消 / 開啟動作。"""
+    """顯示工作清單並回報使用者的取消 / 開啟 / 重試 / 換目標動作。"""
 
     cancelRequested = Signal(str)
     openRequested = Signal(str)
+    retryRequested = Signal(str)
+    removeRequested = Signal(str)
+    targetChanged = Signal(str, str)  # job_id, token
 
     def __init__(self, parent=None) -> None:
         super().__init__(0, len(_HEADERS), parent)
@@ -53,17 +60,23 @@ class JobTable(QTableWidget):
         self.setWordWrap(False)
         self.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.verticalHeader().setDefaultSectionSize(48)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
 
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column, width in ((1, 68), (2, 118), (3, 76), (4, 128), (5, 88)):
+        for column, width in ((1, 68), (2, 168), (3, 76), (4, 128), (5, 96)):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             self.setColumnWidth(column, width)
 
         self._rows: dict[str, _Row] = {}
         self._order: list[str] = []
+        self._target_specs: list[TargetSpec] = []
 
     # ------------------------------------------------------------------ 建表
+
+    def set_target_specs(self, specs: list[TargetSpec]) -> None:
+        self._target_specs = list(specs)
 
     def set_jobs(self, jobs: list[Job]) -> None:
         self.clear_jobs()
@@ -82,6 +95,13 @@ class JobTable(QTableWidget):
         self.clearContents()
         self.setRowCount(0)
 
+    def _targets_for(self, job: Job) -> list[TargetSpec]:
+        """這個工作可以選的目標：對所有來源都適用的格式。"""
+        candidates = [spec for spec in self._target_specs if all(spec.accepts(src) for src in job.sources)]
+        if all(spec.token != job.target.token for spec in candidates):
+            candidates.append(job.target)
+        return candidates
+
     def _build_row(self, index: int, job: Job) -> None:
         name_item = QTableWidgetItem(job.display_name)
         name_item.setToolTip("\n".join(str(p) for p in job.sources))
@@ -91,7 +111,18 @@ class JobTable(QTableWidget):
         kind_item.setForeground(_MUTED)
         self.setItem(index, 1, kind_item)
 
-        self.setItem(index, 2, QTableWidgetItem(job.target.label))
+        combo: QComboBox | None = None
+        if job.status is JobStatus.PENDING:
+            combo = QComboBox()
+            for spec in self._targets_for(job):
+                combo.addItem(spec.label, spec.token)
+            combo.setCurrentIndex(max(0, combo.findData(job.target.token)))
+            combo.currentIndexChanged.connect(
+                lambda _index, jid=job.id, box=combo: self._on_target_changed(jid, box)
+            )
+            self.setCellWidget(index, 2, combo)
+        else:
+            self.setItem(index, 2, QTableWidgetItem(job.target.label))
 
         status_item = QTableWidgetItem(job.status.label)
         self.setItem(index, 3, status_item)
@@ -117,8 +148,13 @@ class JobTable(QTableWidget):
         action_layout.addWidget(button)
         self.setCellWidget(index, 5, action_wrap)
 
-        self._rows[job.id] = _Row(job=job, progress=progress, button=button)
+        self._rows[job.id] = _Row(job=job, progress=progress, button=button, combo=combo)
         self._refresh_row(job)
+
+    def _on_target_changed(self, job_id: str, combo: QComboBox) -> None:
+        token = combo.currentData()
+        if token:
+            self.targetChanged.emit(job_id, token)
 
     # ------------------------------------------------------------------ 更新
 
@@ -167,6 +203,9 @@ class JobTable(QTableWidget):
         elif job.status is JobStatus.DONE:
             row.button.setText("開啟")
             row.button.setEnabled(True)
+        elif job.status is JobStatus.FAILED:
+            row.button.setText("重試")
+            row.button.setEnabled(True)
         else:
             row.button.setText("—")
             row.button.setEnabled(False)
@@ -208,3 +247,25 @@ class JobTable(QTableWidget):
             self.cancelRequested.emit(job_id)
         elif row.job.status is JobStatus.DONE:
             self.openRequested.emit(job_id)
+        elif row.job.status is JobStatus.FAILED:
+            self.retryRequested.emit(job_id)
+
+    def _show_context_menu(self, position) -> None:
+        index = self.indexAt(position)
+        if index.row() < 0 or index.row() >= len(self._order):
+            return
+        job_id = self._order[index.row()]
+        row = self._rows.get(job_id)
+        if row is None:
+            return
+
+        menu = QMenu(self)
+        if row.job.outputs:
+            menu.addAction("開啟輸出資料夾", lambda: self.openRequested.emit(job_id))
+        if row.job.status is JobStatus.FAILED:
+            menu.addAction("重試", lambda: self.retryRequested.emit(job_id))
+        if row.job.status is not JobStatus.RUNNING:
+            menu.addAction("移除工作", lambda: self.removeRequested.emit(job_id))
+        if menu.isEmpty():
+            return
+        menu.exec(self.viewport().mapToGlobal(position))

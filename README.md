@@ -6,7 +6,11 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.6.0（Beta）**，共 **95 個目標格式**、77 種來源副檔名，已通過 217 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.7.0（Beta）**，共 **95 個目標格式**、77 種來源副檔名，已通過 220 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+
+**0.7.0 介面大改版**：格式選擇改為兩段式（類別 → 格式）並支援搜尋；選項面板只顯示
+需要的欄位；輸出資料夾與「開始轉換」放在一起；佇列中**每個工作可個別改目標**、
+失敗可重試、表格有右鍵選單。
 
 **引擎採模組化，系統優先**：電腦上已裝有 FFmpeg／LibreOffice 就直接用系統的、不下載；
 沒有時才下載**精簡版**模組（只含 OpenConvert 用得到的部分）。
@@ -165,7 +169,7 @@ openconvert-cli probe clip.mp4
 
 ```powershell
 pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m pytest -q        # 194 tests
+.venv\Scripts\python.exe -m pytest -q        # 220 tests
 .venv\Scripts\ruff.exe check .               # lint
 .venv\Scripts\ruff.exe format --check .      # 格式檢查
 ```
