@@ -148,32 +148,34 @@ LibreOffice 的無介面轉換每次都使用獨立的 `-env:UserInstallation` �
 
 1. 確認 `engines-v2` Release 存在且 manifest 的 SHA-256 與資產一致
    （必要時執行 `ffmpeg-min.yml` 與 `engines.yml`）。
-2. 更新版本號與 `CHANGELOG.md`。
-3. 跑完 `pytest`、`ruff check`、`ruff format --check`。
-4. 建立標籤並推送：
+2. 若要簽章：先依 [`docs/signing.md`](signing.md) 設定 GitHub Secrets。
+3. 更新版本號與 `CHANGELOG.md`。
+4. 跑完 `pytest`、`ruff check`、`ruff format --check`。
+5. 建立標籤並推送：
 
    ```powershell
-   git tag v0.5.0
-   git push origin v0.5.0
+   git tag v0.7.5
+   git push origin v0.7.5
    ```
 
-5. `.github/workflows/release-windows.yml` 會自動：
+6. `.github/workflows/release-windows.yml` 會自動：
    - 檢查標籤與程式版本一致
-   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.5.0-windows-x64.zip`
+   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.7.5-windows-x64.zip`
+   - 簽章兩個執行檔（已設定憑證 secrets 時）
    - 建立 GitHub Release 並附上 ZIP
 
 若只是要驗證流程，可用 `workflow_dispatch` 手動執行（只上傳 artifact、不建立 Release）。
 
 ## 簽章與 SmartScreen
 
-未簽章的執行檔在 Windows 上會出現 SmartScreen 警告。若要正式散布，建議：
+Release 流程已內建**自動簽章**：設定好憑證 secrets 之後，打包 ZIP 前會自動簽署
+`OpenConvert.exe` 與 `OpenConvertCLI.exe`（SHA256 + RFC3161 時間戳），
+並在記錄中印出簽章狀態。未設定憑證時自動跳過，行為與未簽章相同。
 
-- 使用程式碼簽章憑證（EV 憑證可立即取得信譽）；
-- 或提供 SHA-256 檢查碼，讓使用者自行比對：
-
-  ```powershell
-  Get-FileHash OpenConvert-0.5.0-windows-x64.zip -Algorithm SHA256
-  ```
+- 支援方式：**Azure Artifact Signing**（原 Trusted Signing，建議）與可匯出的 **PFX** 憑證
+- 完整說明（費用、申請、GitHub Secrets 設定、常見錯誤）見 [`docs/signing.md`](signing.md)
+- 使用者端驗證：右鍵內容 → 數位簽章，或 `signtool verify /pa /all OpenConvert.exe`
+- SHA-256 檢查碼：`Get-FileHash OpenConvert-0.7.5-windows-x64.zip -Algorithm SHA256`
 
 ## 其他平台
 

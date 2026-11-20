@@ -16,6 +16,29 @@
 - XML／SQLite／Parquet 資料模組、7z／RAR 壓縮模組
 - JPEG XL、EXR 等影像格式
 
+## [0.7.5] - 2026-11-20
+
+**Windows 程式碼簽章基礎建設**：Release 流程可自動簽署執行檔，
+消除「Unknown publisher」並大幅降低 SmartScreen「不安全軟體」警告。
+
+### 新增
+
+- **Release 自動簽章**：支援 **Azure Artifact Signing**（原 Trusted Signing，建議，
+  每月約 US$9.99、雲端簽章免硬體 token）與可匯出的 **PFX 憑證**（備援）；
+  簽章使用 SHA256 並加 RFC3161 時間戳（憑證過期後簽章仍有效）。
+- **`docs/signing.md`**：兩種憑證的費用比較、Azure Artifact Signing 的完整申請步驟
+  （帳戶、身份驗證、憑證設定檔、App Registration 與角色）、GitHub Secrets 對照表、
+  常見錯誤與 SmartScreen 行為的誠實說明。
+- 簽章狀態會記錄在 build log（`Get-AuthenticodeSignature`）供檢查。
+
+### 行為
+
+- 六個 secrets（`AZURE_TENANT_ID` 等）**全部未設定時自動跳過簽章**，
+  產物與未簽章版本相同，Release 不會失敗。
+- 設定憑證 secrets 之後，推 `v*` 標籤的 Release 即自動簽章。
+- 誠實說明：SmartScreen 信譽仍需累積下載量（Artifact Signing 較快），
+  簽章無法保證第一天下載就完全不警告。
+
 ## [0.7.0] - 2026-11-20
 
 **介面大改版**：針對「太難用」的回饋重新設計轉換頁。測試 217 → 220 個。
