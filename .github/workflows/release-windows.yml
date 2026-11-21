@@ -82,17 +82,24 @@ jobs:
             "dist\OpenConvert\OpenConvert.exe" "dist\OpenConvert\OpenConvertCLI.exe"
           if ($LASTEXITCODE -ne 0) { throw "signtool 簽章失敗（$LASTEXITCODE）" }
 
-      - name: 簽章狀態
+      - name: 簽章狀態與公開憑證匯出
         shell: pwsh
         run: |
-          $signed = $false
+          $signer = $null
           foreach ($file in @("dist\OpenConvert\OpenConvert.exe", "dist\OpenConvert\OpenConvertCLI.exe")) {
             $signature = Get-AuthenticodeSignature $file
             $name = [IO.Path]::GetFileName($file)
             "簽章狀態 $name ： $($signature.Status)"
-            if ($signature.Status -eq "Valid") { $signed = $true }
+            if ($null -eq $signer -and $null -ne $signature.SignerCertificate) {
+              $signer = $signature.SignerCertificate
+            }
           }
-          if (-not $signed) {
+          if ($null -ne $signer) {
+            # 匯出公開憑證放進 ZIP，讓使用者安裝（自簽憑證需要）
+            [IO.File]::WriteAllBytes("dist\OpenConvert\openconvert-codesign.cer", `
+              $signer.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+            "已匯出公開憑證 openconvert-codesign.cer"
+          } else {
             "未設定程式碼簽章：產物維持未簽章（SmartScreen 可能會提示）。"
           }
 

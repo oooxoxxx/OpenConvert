@@ -72,10 +72,49 @@
 - 若你的憑證可匯出成 **PFX**，OpenConvert 的 Release 流程也支援：
   設定 `CODE_SIGNING_PFX`（PFX 檔的 base64 內容）與 `CODE_SIGNING_PFX_PASSWORD`。
 
-### 選項 C：自簽憑證（不建議用於發佈）
+### 選項 C：自簽憑證（零費用，有明確限制）
 
-自我簽發的憑證**無法**消除 SmartScreen 警告（使用者電腦不信任它），
-只適合在內部測試。OpenConvert 的發佈流程刻意不提供這個選項。
+**誠實說明**：自簽憑證**不會**消除一般使用者下載後的 SmartScreen 警告——
+Windows 不信任自簽憑證鏈。我們實測：簽章成功後 `Get-AuthenticodeSignature`
+回報「A certificate chain processed, but terminated in a root certificate which
+is not trusted by the trust provider」（根憑證不受信任）。
+
+它**能**做到的：
+
+- 檔案完整性（簽章後被竄改即失效）
+- 顯示簽發者資訊（OpenConvert 的自簽憑證）
+- 在**安裝過我們憑證的機器**上，不出現未知的簽發者（適合受控環境、親友分發）
+
+產生憑證（本機執行一次，Windows 內建 PowerShell 即可）：
+
+```powershell
+cd OpenConvert
+powershell -ExecutionPolicy Bypass -File scripts\create_signing_cert.ps1 -Subject "CN=你的名字" -OutDir .\secrets
+```
+
+腳本會產生：
+
+| 檔案 | 用途 |
+| --- | --- |
+| `openconvert-codesign.pfx` | 私密金鑰（**不要公開**） |
+| `openconvert-codesign.cer` | 公開憑證（交給使用者安裝） |
+| `CODE_SIGNING_PFX.base64.txt` | GitHub Secret `CODE_SIGNING_PFX` 的內容 |
+
+GitHub Secrets：`CODE_SIGNING_PFX` = base64 檔案的內容、`CODE_SIGNING_PFX_PASSWORD` =
+你設定的密碼。設定後 Release 會自動用**同一張憑證**簽署每個版本，
+並把公開憑證 `openconvert-codesign.cer` 一起放進 ZIP。
+
+讓警告在使用者機器上消失（每台機器都要做一次）：
+
+1. 從 ZIP 取出 `openconvert-codesign.cer`。
+2. 以**系統管理員** PowerShell 執行：
+
+   ```powershell
+   certutil -addstore Root openconvert-codesign.cer
+   certutil -addstore TrustedPublisher openconvert-codesign.cer
+   ```
+
+3. 之後執行 OpenConvert 不會出現未知的簽發者（SmartScreen 首次仍可能提示）。
 
 ## 3. Release 流程如何簽章（已內建）
 
