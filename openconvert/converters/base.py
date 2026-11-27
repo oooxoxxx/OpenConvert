@@ -122,6 +122,7 @@ class ConvertContext:
             extension,
             overwrite=self.overwrite,
             stem_override=self.stem_for(source),
+            protected_sources=self.sources,
         )
 
     def cleanup(self) -> None:

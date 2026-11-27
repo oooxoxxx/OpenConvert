@@ -154,13 +154,13 @@ LibreOffice 的無介面轉換每次都使用獨立的 `-env:UserInstallation` �
 5. 建立標籤並推送：
 
    ```powershell
-   git tag v0.10.0
-   git push origin v0.10.0
+   git tag v0.10.1
+   git push origin v0.10.1
    ```
 
 6. `.github/workflows/release-windows.yml` 會自動：
    - 檢查標籤與程式版本一致
-   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.10.0-windows-x64.zip`
+   - 建置 PyInstaller 產物並壓成 `OpenConvert-0.10.1-windows-x64.zip`
    - 簽章兩個執行檔（已設定憑證 secrets 時）
    - 建立 GitHub Release 並附上 ZIP
 
@@ -175,7 +175,7 @@ Release 流程已內建**自動簽章**：設定好憑證 secrets 之後，打�
 - 支援方式：**Azure Artifact Signing**（原 Trusted Signing，建議）與可匯出的 **PFX** 憑證
 - 完整說明（費用、申請、GitHub Secrets 設定、常見錯誤）見 [`docs/signing.md`](signing.md)
 - 使用者端驗證：右鍵內容 → 數位簽章，或 `signtool verify /pa /all OpenConvert.exe`
-- SHA-256 檢查碼：`Get-FileHash OpenConvert-0.10.0-windows-x64.zip -Algorithm SHA256`
+- SHA-256 檢查碼：`Get-FileHash OpenConvert-0.10.1-windows-x64.zip -Algorithm SHA256`
 
 ## 其他平台
 

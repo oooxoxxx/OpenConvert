@@ -6,7 +6,10 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.10.0（Beta）**，共 **100 個目標格式**、92 種來源副檔名，已通過 251 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.10.1（Beta）**，共 **100 個目標格式**、92 種來源副檔名，已通過 255 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+
+**0.10.1 安全修正**：即使使用檔名樣板與覆寫模式，也絕不覆寫任何實際來源檔；
+7z 只解出安全項目，損毀 SQLite 則回報明確錯誤。請以 0.10.1 取代 0.10.0。
 
 **0.10.0 資料／壓縮補完**：XML 可與 JSON／CSV／XLSX／YAML／TOML 互轉，SQLite 可唯讀
 取出指定資料表；新增 7z／tar.zst 打包、多格式解壓與 PDF 分割。介面加入拖放排序、
@@ -187,7 +190,7 @@ openconvert-cli probe clip.mp4
 
 ```powershell
 pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m pytest -q        # 251 tests
+.venv\Scripts\python.exe -m pytest -q        # 255 tests
 .venv\Scripts\ruff.exe check .               # lint
 .venv\Scripts\ruff.exe format --check .      # 格式檢查
 ```

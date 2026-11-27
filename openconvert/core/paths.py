@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 from .errors import OutputConflictError
@@ -77,6 +78,7 @@ def resolve_output(
     *,
     overwrite: bool = False,
     stem_override: str | None = None,
+    protected_sources: Iterable[str | Path] | None = None,
 ) -> Path:
     """決定單一輸出檔的路徑。
 
@@ -87,6 +89,7 @@ def resolve_output(
     3. 輸出目錄會被建立。
 
     ``stem_override`` 可指定主檔名（來自檔名樣板）；為 ``None`` 時沿用來源主檔名。
+    ``protected_sources`` 可列入整批工作的實際來源，避免合成路徑或檔名樣板繞過保護。
     """
     ext = extension.lower().lstrip(".")
     base_dir = Path(output_dir) if output_dir else source.parent
@@ -99,11 +102,19 @@ def resolve_output(
     else:
         candidate = base_dir / f"{sanitize_stem(stem)}.{ext}"
 
-    if _same_file(candidate, source):
+    protected = [source, *(Path(item) for item in (protected_sources or ()))]
+
+    def conflicts_with_source(path: Path) -> bool:
+        return any(_same_file(path, item) for item in protected)
+
+    if conflicts_with_source(candidate):
         candidate = base_dir / f"{sanitize_stem(source.stem)}_converted.{ext}"
 
     if overwrite:
-        if _same_file(candidate, source):  # pragma: no cover - 前面已處理
+        if conflicts_with_source(candidate):
+            # 即使使用者允許覆蓋既有輸出，也只能另找新名，絕不可覆寫任何來源。
+            candidate = unique_path(candidate)
+        if conflicts_with_source(candidate):  # pragma: no cover - unique_path 已排除既有來源
             raise OutputConflictError("輸出位置與來源檔案相同，已阻止覆蓋原始檔。")
         return candidate
 

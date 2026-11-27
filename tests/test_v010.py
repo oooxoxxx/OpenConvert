@@ -274,3 +274,72 @@ def test_filename_template_with_date_and_index(tools, png_file: Path, tmp_path: 
 def test_filename_template_empty_uses_source_stem(tools, png_file: Path, tmp_path: Path):
     _job, outputs = run_conversion([png_file], "jpg", tools, output_dir=tmp_path / "out")
     assert outputs[0].name == "sample.jpg"
+
+
+# --------------------------------------------------------------------------- 0.10.1 安全回歸
+
+
+def test_template_overwrite_never_overwrites_real_source(tools, pdf_file: Path):
+    original = pdf_file.read_bytes()
+
+    _job, outputs = run_conversion(
+        [pdf_file],
+        "pdf-compress",
+        tools,
+        overwrite=True,
+        filename_template=pdf_file.stem,
+    )
+
+    assert outputs[0] != pdf_file
+    assert outputs[0].name == f"{pdf_file.stem}_compressed_converted.pdf"
+    assert pdf_file.read_bytes() == original
+
+
+def test_template_overwrite_protects_every_group_source(tools, pdf_file: Path, tmp_path: Path):
+    second = tmp_path / "other.pdf"
+    second.write_bytes(pdf_file.read_bytes())
+    original = second.read_bytes()
+
+    _job, outputs = run_conversion(
+        [pdf_file, second],
+        "pdf-merge",
+        tools,
+        overwrite=True,
+        filename_template=second.stem,
+    )
+
+    assert outputs[0] != second
+    assert second.read_bytes() == original
+    assert outputs[0].is_file()
+
+
+def test_7z_extracts_only_safe_members(tools, tmp_path: Path, monkeypatch):
+    import importlib
+
+    import py7zr
+
+    module = importlib.import_module("py7zr.py7zr")
+    malicious = tmp_path / "mixed.7z"
+    # py7zr 正常會拒絕建立這種封裝；只在產生惡意測試樣本時暫時繞過，
+    # 建立後立刻還原，讓解壓端使用真正的安全檢查。
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "check_archive_path", lambda _path: True)
+        with py7zr.SevenZipFile(malicious, "w") as archive:
+            archive.writestr(b"good", "safe.txt")
+            archive.writestr(b"bad", "../escape.txt")
+
+    _job, outputs = run_conversion([malicious], "archive-extract", tools, output_dir=tmp_path / "out")
+
+    assert (outputs[0] / "safe.txt").read_bytes() == b"good"
+    assert not (tmp_path / "escape.txt").exists()
+    assert not (tmp_path / "out" / "escape.txt").exists()
+
+
+def test_invalid_sqlite_raises_conversion_error(tools, tmp_path: Path):
+    from openconvert.core.errors import ConversionError
+
+    bad = tmp_path / "bad.sqlite"
+    bad.write_text("not a database", encoding="utf-8")
+
+    with pytest.raises(ConversionError, match="SQLite"):
+        run_conversion([bad], "data-json", tools)

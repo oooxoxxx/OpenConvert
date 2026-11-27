@@ -266,13 +266,12 @@ def _read_sqlite(path: Path, sheet: str | None) -> tuple[list[str], list[list[An
                 f"「{path.name}」沒有資料表「{sheet}」。可用的資料表：{'、'.join(tables)}"
             )
         safe_table = table.replace('"', '""')
-        try:
-            cursor = connection.execute(f'SELECT * FROM "{safe_table}"')
-        except sqlite3.Error as exc:
-            raise ConversionError(f"讀取資料表失敗：{exc}", detail=str(exc)) from exc
+        cursor = connection.execute(f'SELECT * FROM "{safe_table}"')
         header = [column[0] for column in cursor.description]
         rows = [list(row) for row in cursor.fetchall()]
         return header, rows
+    except sqlite3.Error as exc:
+        raise ConversionError(f"無法讀取 SQLite 檔案「{path.name}」：{exc}", detail=str(exc)) from exc
     finally:
         connection.close()
 

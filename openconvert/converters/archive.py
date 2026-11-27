@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import shutil
 import tarfile
-import tempfile
 import zipfile
 from pathlib import Path, PureWindowsPath
 
@@ -206,24 +205,25 @@ class ArchiveConverter(Converter):
 
         try:
             with py7zr.SevenZipFile(source, "r") as archive:
-                names = [name for name in archive.getnames() if not archive.getinfo(name).is_directory]
-                safe_names = [name for name in names if _safe_member(name) is not None]
+                infos = archive.list()
+                files = [info for info in infos if not info.is_directory]
+                safe_names = [
+                    info.filename
+                    for info in files
+                    if not info.is_symlink and _safe_member(info.filename) is not None
+                ]
+                for info in files:
+                    if info.is_symlink or _safe_member(info.filename) is None:
+                        ctx.log(f"略過不安全的路徑：{info.filename}")
                 if not safe_names:
                     raise ConversionError("壓縮檔中沒有可解壓的檔案。")
-                if len(safe_names) == len(names):
-                    archive.extractall(path=str(out_dir))
-                    return len(safe_names)
 
-                # 有不安全路徑：先解到暫存目錄，再只複製安全檔案
-                with tempfile.TemporaryDirectory(prefix="openconvert-7z-") as folder:
-                    temp_dir = Path(folder)
-                    archive.extractall(path=str(temp_dir))
-                    for name in safe_names:
-                        src = temp_dir / name
-                        if src.is_file():
-                            dest = out_dir / name
-                            dest.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copyfile(src, dest)
+                if len(safe_names) == len(files):
+                    archive.extractall(path=str(out_dir))
+                else:
+                    # 不能只 extractall()：py7zr 會因任一不安全項目拒絕整包。
+                    # 一次指定所有安全項目，也避開逐項解壓的 CRC 問題。
+                    archive.extract(path=str(out_dir), targets=safe_names)
                 return len(safe_names)
         except (OSError, py7zr.exceptions.ArchiveError) as exc:
             raise ConversionError(f"無法解壓「{source.name}」：{exc}", detail=str(exc)) from exc
