@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -47,6 +47,9 @@ class JobTable(QTableWidget):
     openRequested = Signal(str)
     retryRequested = Signal(str)
     removeRequested = Signal(str)
+    moveUp = Signal(str)
+    moveDown = Signal(str)
+    orderChanged = Signal(list)  # 拖放後的 job_id 順序
     targetChanged = Signal(str, str)  # job_id, token
 
     def __init__(self, parent=None) -> None:
@@ -57,6 +60,12 @@ class JobTable(QTableWidget):
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setDragDropOverwriteMode(False)
+        self.setDropIndicatorShown(True)
+        self._reordering_enabled = True
+        self.setDragEnabled(True)
         self.setWordWrap(False)
         self.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.verticalHeader().setDefaultSectionSize(48)
@@ -237,6 +246,54 @@ class JobTable(QTableWidget):
     def job_ids(self) -> list[str]:
         return list(self._order)
 
+    # ------------------------------------------------------------------ 拖放排序
+
+    def set_reordering_enabled(self, enabled: bool) -> None:
+        self._reordering_enabled = enabled
+        self.setDragEnabled(enabled)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """自行計算新順序，不交給 Qt 移動項目，避免 cell widget 與工作列錯位。"""
+        if not self._reordering_enabled or event.source() is not self:
+            event.ignore()
+            return
+
+        selected = self.selected_job_ids()
+        if not selected:
+            event.ignore()
+            return
+
+        row = self.indexAt(event.position().toPoint()).row()
+        position = self.dropIndicatorPosition()
+        if row < 0 or position == QAbstractItemView.DropIndicatorPosition.OnViewport:
+            target = len(self._order)
+        else:
+            target = row + int(position == QAbstractItemView.DropIndicatorPosition.BelowItem)
+
+        order = self._order_after_drop(selected, target)
+        if order == self._order:
+            event.ignore()
+            return
+
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
+        self.orderChanged.emit(order)
+
+    def _order_after_drop(self, selected: list[str], target: int) -> list[str]:
+        """回傳把選取列插到 target 前的順序；target 以拖曳前的列號計算。"""
+        moving = set(selected)
+        moved = [job_id for job_id in self._order if job_id in moving]
+        if not moved:
+            return list(self._order)
+
+        target = max(0, min(len(self._order), target))
+        removed_before = sum(
+            1 for index, job_id in enumerate(self._order) if index < target and job_id in moving
+        )
+        remaining = [job_id for job_id in self._order if job_id not in moving]
+        insertion = max(0, min(len(remaining), target - removed_before))
+        return remaining[:insertion] + moved + remaining[insertion:]
+
     # ------------------------------------------------------------------ 互動
 
     def _on_action(self, job_id: str) -> None:
@@ -265,6 +322,9 @@ class JobTable(QTableWidget):
         if row.job.status is JobStatus.FAILED:
             menu.addAction("重試", lambda: self.retryRequested.emit(job_id))
         if row.job.status is not JobStatus.RUNNING:
+            menu.addAction("上移", lambda: self.moveUp.emit(job_id))
+            menu.addAction("下移", lambda: self.moveDown.emit(job_id))
+            menu.addSeparator()
             menu.addAction("移除工作", lambda: self.removeRequested.emit(job_id))
         if menu.isEmpty():
             return

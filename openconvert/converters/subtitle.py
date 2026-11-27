@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..core.errors import ConversionError
-from ..core.paths import resolve_output
 from ..core.textio import read_text, write_text
 from .base import ConvertContext, Converter
 
@@ -280,7 +279,7 @@ class SubtitleConverter(Converter):
             raise ConversionError(f"不支援的字幕目標：{token}")
 
         ctx.report(0.7, "寫入字幕")
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
         write_text(dest, content)
         ctx.report(1.0, "完成")

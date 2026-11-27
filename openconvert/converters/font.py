@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..core.errors import ConversionError
-from ..core.paths import resolve_output
 from .base import ConvertContext, Converter
 
 FLAVORS: dict[str, str | None] = {
@@ -56,7 +55,7 @@ class FontConverter(Converter):
                 )
 
             ctx.report(0.3, "轉換字型")
-            dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+            dest = ctx.resolve_output(source, ctx.job.target.extension)
             ctx.track(dest)
             font.flavor = FLAVORS[token]
             try:

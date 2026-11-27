@@ -11,7 +11,6 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ..core.errors import ConversionError
 from ..core.imaging import heic_available
-from ..core.paths import resolve_output
 from .base import ConvertContext, Converter
 
 #: 目標 token → Pillow 格式名稱
@@ -177,7 +176,7 @@ class ImageConverter(Converter):
             raise ConversionError("轉成 HEIC 需要 pillow-heif 套件，請執行 pip install pillow-heif 後再試。")
 
         source = ctx.source
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
         ctx.report(0.1, "讀取中")
 
@@ -206,7 +205,7 @@ class ImageConverter(Converter):
         動畫圖片只處理第一格（會在記錄中說明）。
         """
         source = ctx.source
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
         ctx.report(0.1, "讀取中")
 
@@ -260,7 +259,7 @@ class ImageConverter(Converter):
         sources = ctx.sources
         first = sources[0]
         name = f"{first.stem}_merged" if len(sources) > 1 else first.stem
-        dest = resolve_output(first.with_name(name), ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(first.with_name(name), "pdf")
         ctx.track(dest)
 
         pages: list[Image.Image] = []

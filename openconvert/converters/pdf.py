@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError
 
 from ..core.errors import ConversionError, InvalidInputError
-from ..core.paths import human_size, resolve_output, resolve_output_dir
+from ..core.paths import human_size, resolve_output_dir
 from ..core.textio import write_text
 from .base import ConvertContext, Converter
 
@@ -112,6 +112,8 @@ class PdfConverter(Converter):
             return self._decrypt(ctx)
         if token == "pdf-compress":
             return self._compress(ctx)
+        if token == "pdf-split":
+            return self._split(ctx)
         raise ConversionError(f"不支援的 PDF 操作：{token}")
 
     # ------------------------------------------------------------ 合併
@@ -121,9 +123,7 @@ class PdfConverter(Converter):
             raise InvalidInputError("合併 PDF 需要至少 2 個檔案。")
 
         first = ctx.sources[0]
-        dest = resolve_output(
-            first.with_name(f"{first.stem}_merged"), ctx.output_dir, "pdf", overwrite=ctx.overwrite
-        )
+        dest = ctx.resolve_output(first.with_name(f"{first.stem}_merged"), "pdf")
         ctx.track(dest)
 
         writer = PdfWriter()
@@ -157,7 +157,7 @@ class PdfConverter(Converter):
         page_count = len(reader.pages)
         indices = parse_page_ranges(str(ctx.option("pages", "")), page_count)
 
-        dest = resolve_output(source, ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, "pdf")
         ctx.track(dest)
 
         writer = PdfWriter()
@@ -253,7 +253,7 @@ class PdfConverter(Converter):
                 "這份 PDF 沒有可抽取的文字層。它可能是掃描檔，請改用「PDF → PNG／JPEG」再辨識文字。"
             )
 
-        dest = resolve_output(source, ctx.output_dir, "txt", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, "txt")
         ctx.track(dest)
         write_text(dest, content + "\n")
         ctx.report(1.0, "完成")
@@ -274,7 +274,7 @@ class PdfConverter(Converter):
         dpi = int(ctx.option("dpi", DEFAULT_DPI) or DEFAULT_DPI)
         dpi = max(MIN_DPI, min(MAX_DPI, dpi))
 
-        dest = resolve_output(source, ctx.output_dir, "cbz", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, "cbz")
         ctx.track(dest)
 
         document = None
@@ -315,6 +315,48 @@ class PdfConverter(Converter):
         self._verify(dest)
         return [dest]
 
+    # ------------------------------------------------------------ 分割
+
+    def _split(self, ctx: ConvertContext) -> list[Path]:
+        """每 N 頁輸出成獨立 PDF（多輸出資料夾）。"""
+        source = ctx.source
+        reader = _open_reader(source)
+        page_count = len(reader.pages)
+        if page_count == 0:
+            raise ConversionError("這份 PDF 沒有任何頁面。")
+
+        try:
+            chunk = int(ctx.option("split_pages", 1))
+        except (TypeError, ValueError):
+            chunk = 1
+        if chunk < 1:
+            raise InvalidInputError("每份頁數必須是 1 以上的整數。")
+
+        out_dir = resolve_output_dir(source, ctx.output_dir, f"{source.stem}_split")
+        ctx.track(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        outputs: list[Path] = []
+        parts = (page_count + chunk - 1) // chunk
+        for part in range(parts):
+            ctx.check_cancel()
+            start = part * chunk
+            end = min(start + chunk, page_count)
+            writer = PdfWriter()
+            for index in range(start, end):
+                writer.add_page(reader.pages[index])
+            dest = out_dir / f"part_{part + 1:03d}.pdf"
+            with dest.open("wb") as handle:
+                writer.write(handle)
+            writer.close()
+            outputs.append(dest)
+            ctx.report(part / max(1, parts), f"第 {part + 1}/{parts} 份")
+
+        if not outputs:
+            raise ConversionError("PDF 分割沒有產生任何檔案。")
+        ctx.report(1.0, "完成")
+        return outputs
+
     # ------------------------------------------------------------ 加密／解密／壓縮
 
     def _encrypt(self, ctx: ConvertContext) -> list[Path]:
@@ -333,12 +375,7 @@ class PdfConverter(Converter):
                 ctx.log(f"AES 加密不可用（{exc}），改用 RC4-128。")
                 writer.encrypt(user_password=password, owner_password=password, algorithm="RC4-128")
             ctx.report(0.9, "寫入檔案")
-            dest = resolve_output(
-                source.with_name(f"{source.stem}_encrypted"),
-                ctx.output_dir,
-                "pdf",
-                overwrite=ctx.overwrite,
-            )
+            dest = ctx.resolve_output(source.with_name(f"{source.stem}_encrypted"), "pdf")
             ctx.track(dest)
             with dest.open("wb") as handle:
                 writer.write(handle)
@@ -366,12 +403,7 @@ class PdfConverter(Converter):
         try:
             writer.append(reader)
             ctx.report(0.9, "寫入檔案")
-            dest = resolve_output(
-                source.with_name(f"{source.stem}_decrypted"),
-                ctx.output_dir,
-                "pdf",
-                overwrite=ctx.overwrite,
-            )
+            dest = ctx.resolve_output(source.with_name(f"{source.stem}_decrypted"), "pdf")
             ctx.track(dest)
             with dest.open("wb") as handle:
                 writer.write(handle)
@@ -407,12 +439,7 @@ class PdfConverter(Converter):
                 ctx.log(f"重複物件清理略過：{exc}")
 
             ctx.report(0.9, "寫入檔案")
-            dest = resolve_output(
-                source.with_name(f"{source.stem}_compressed"),
-                ctx.output_dir,
-                "pdf",
-                overwrite=ctx.overwrite,
-            )
+            dest = ctx.resolve_output(source.with_name(f"{source.stem}_compressed"), "pdf")
             ctx.track(dest)
             with dest.open("wb") as handle:
                 writer.write(handle)

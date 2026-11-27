@@ -178,3 +178,11 @@ def test_preferred_target_avoids_source_extension():
     assert preferred_target([Path("a.png")], None).token == "jpg"  # type: ignore[union-attr]
     assert preferred_target([Path("a.jpeg")], None).token == "png"  # type: ignore[union-attr]
     assert preferred_target([Path("a.mp4")], None).token == "mkv"  # type: ignore[union-attr]
+
+
+def test_preferred_target_extracts_archives_by_default():
+    assert preferred_target([Path("a.zip")], None).token == "archive-extract"  # type: ignore[union-attr]
+    assert preferred_target([Path("a.7z")], None).token == "archive-extract"  # type: ignore[union-attr]
+    assert preferred_target([Path("a.zip")], "mp4").token == "archive-extract"  # type: ignore[union-attr]
+    # 明確選過的壓縮目標仍優先沿用。
+    assert preferred_target([Path("a.zip")], "archive-7z").token == "archive-7z"  # type: ignore[union-attr]

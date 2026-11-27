@@ -8,6 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,8 @@ from ..core.job import Job
 from ..core.kinds import kinds_for
 from ..core.office import OfficeTools
 from ..core.office import discover as discover_office
+from ..core.paths import resolve_output as _resolve_output
+from ..core.paths import sanitize_stem
 
 
 @dataclass
@@ -79,6 +82,47 @@ class ConvertContext:
         resolved = Path(path)
         self._created.append(resolved)
         return resolved
+
+    # ------------------------------------------------------------ 輸出與檔名樣板
+
+    def stem_for(self, source: Path) -> str:
+        """展開檔名樣板，回傳已清理的主檔名。
+
+        變數：``{name}`` 來源主檔名、``{ext}`` 目標副檔名、``{date}``（YYYYMMDD）、
+        ``{time}``（HHMMSS）、``{index}``（本批工作序號，三位數補零）。
+        樣板為空時回傳來源主檔名（與舊行為相同）。
+        """
+        template = str(self.option("filename_template", "") or "").strip()
+        if not template:
+            return sanitize_stem(source.stem)
+
+        job_index = self.option("_job_index", 1)
+        try:
+            index = int(job_index)
+        except (TypeError, ValueError):
+            index = 1
+
+        now = datetime.now()
+        replacements = {
+            "name": source.stem,
+            "ext": self.job.target.extension.lstrip("."),
+            "date": now.strftime("%Y%m%d"),
+            "time": now.strftime("%H%M%S"),
+            "index": f"{index:03d}",
+        }
+        for key, value in replacements.items():
+            template = template.replace("{" + key + "}", str(value))
+        return sanitize_stem(template)
+
+    def resolve_output(self, source: Path, extension: str) -> Path:
+        """決定輸出路徑，套用檔名樣板（若有）。"""
+        return _resolve_output(
+            source,
+            self.output_dir,
+            extension,
+            overwrite=self.overwrite,
+            stem_override=self.stem_for(source),
+        )
 
     def cleanup(self) -> None:
         """刪除本次轉換產生的半成品。"""

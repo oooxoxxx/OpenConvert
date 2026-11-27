@@ -24,6 +24,7 @@ class MediaKind(str, Enum):
     DATA = "data"
     SUBTITLE = "subtitle"
     FONT = "font"
+    ARCHIVE = "archive"
     UNKNOWN = "unknown"
 
 
@@ -75,9 +76,10 @@ TEXT_EXTENSIONS = frozenset({"txt", "md", "markdown"})
 MARKUP_EXTENSIONS = frozenset({"html", "htm"})
 OFFICE_EXTENSIONS = frozenset({"docx", "doc", "odt", "rtf", "pptx", "ppt", "odp"})
 SHEET_EXTENSIONS = frozenset({"xlsx", "xlsm", "xls", "ods"})
-DATA_EXTENSIONS = frozenset({"csv", "tsv", "json", "yaml", "yml", "toml"})
+DATA_EXTENSIONS = frozenset({"csv", "tsv", "json", "yaml", "yml", "toml", "xml", "db", "sqlite", "sqlite3"})
 SUBTITLE_EXTENSIONS = frozenset({"srt", "vtt", "ass", "ssa"})
 FONT_EXTENSIONS = frozenset({"ttf", "otf", "woff", "woff2"})
+ARCHIVE_EXTENSIONS = frozenset({"zip", "7z", "tar", "gz", "zst", "bz2", "xz", "tgz", "tbz", "tbz2", "txz"})
 
 #: 這些副檔名同時是「圖片」也是「影片」來源。
 AMBIGUOUS_EXTENSIONS = frozenset({"gif"})
@@ -99,6 +101,7 @@ KIND_LABELS: dict[MediaKind, str] = {
     MediaKind.DATA: "資料",
     MediaKind.SUBTITLE: "字幕",
     MediaKind.FONT: "字型",
+    MediaKind.ARCHIVE: "壓縮檔",
     MediaKind.UNKNOWN: "未知",
 }
 
@@ -134,6 +137,8 @@ def kinds_for_extension(extension: str) -> tuple[MediaKind, ...]:
         return (MediaKind.SUBTITLE,)
     if ext in FONT_EXTENSIONS:
         return (MediaKind.FONT,)
+    if ext in ARCHIVE_EXTENSIONS:
+        return (MediaKind.ARCHIVE,)
     if ext == "pdf":
         return (MediaKind.PDF,)
     if ext == "epub":
@@ -171,5 +176,6 @@ SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
     | DATA_EXTENSIONS
     | SUBTITLE_EXTENSIONS
     | FONT_EXTENSIONS
+    | ARCHIVE_EXTENSIONS
     | {"pdf", "epub", "cbz"}
 )

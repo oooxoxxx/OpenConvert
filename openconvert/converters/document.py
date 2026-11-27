@@ -12,7 +12,6 @@ from pathlib import Path
 
 from ..core import office
 from ..core.errors import ConversionError, UnsupportedFormatError
-from ..core.paths import resolve_output
 from ..core.textio import read_text, write_text
 from . import markup
 from .base import ConvertContext, Converter
@@ -271,14 +270,14 @@ class DocumentConverter(Converter):
 
     def _write_text(self, ctx: ConvertContext, content: str) -> list[Path]:
         ctx.report(0.7, "寫入檔案")
-        dest = resolve_output(ctx.source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(ctx.source, ctx.job.target.extension)
         ctx.track(dest)
         write_text(dest, content)
         return self._finish(ctx, dest)
 
     def _write_html(self, ctx: ConvertContext, content: str) -> list[Path]:
         ctx.report(0.7, "寫入 HTML")
-        dest = resolve_output(ctx.source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(ctx.source, ctx.job.target.extension)
         ctx.track(dest)
         write_text(dest, content)
         return self._finish(ctx, dest)
@@ -292,7 +291,7 @@ class DocumentConverter(Converter):
             )
 
         source = ctx.source
-        dest = resolve_output(source, ctx.output_dir, extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, extension)
         ctx.track(dest)
 
         ctx.report(0.05, "啟動 LibreOffice")
@@ -322,7 +321,7 @@ class DocumentConverter(Converter):
             )
 
         source = ctx.source
-        dest = resolve_output(source, ctx.output_dir, extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, extension)
         ctx.track(dest)
 
         filter_name = "MS Word 2007 XML" if extension.lower() == "docx" else ""

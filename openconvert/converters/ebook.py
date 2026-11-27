@@ -20,7 +20,6 @@ from PIL import Image
 
 from ..core import office
 from ..core.errors import ConversionError
-from ..core.paths import resolve_output
 from ..core.sorting import natural_key
 from ..core.textio import read_text, write_text
 from . import markup
@@ -218,7 +217,7 @@ class EbookConverter(Converter):
     def _write_cbz(self, ctx: ConvertContext, pages: list[tuple[str, bytes]]) -> list[Path]:
         source = ctx.source
         name = f"{source.stem}_book" if len(ctx.sources) > 1 else source.stem
-        dest = resolve_output(source.with_name(name), ctx.output_dir, "cbz", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source.with_name(name), "cbz")
         ctx.track(dest)
 
         try:
@@ -240,7 +239,7 @@ class EbookConverter(Converter):
     def _write_epub(self, ctx: ConvertContext, pages: list[tuple[str, bytes]]) -> list[Path]:
         source = ctx.source
         name = f"{source.stem}_book" if len(ctx.sources) > 1 else source.stem
-        dest = resolve_output(source.with_name(name), ctx.output_dir, "epub", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source.with_name(name), "epub")
         ctx.track(dest)
 
         book_id = f"urn:uuid:{uuid.uuid4()}"
@@ -322,7 +321,7 @@ class EbookConverter(Converter):
     def _write_pdf(self, ctx: ConvertContext, pages: list[tuple[str, bytes]]) -> list[Path]:
         source = ctx.source
         name = f"{source.stem}_book" if len(ctx.sources) > 1 else source.stem
-        dest = resolve_output(source.with_name(name), ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source.with_name(name), "pdf")
         ctx.track(dest)
 
         images: list[Image.Image] = []
@@ -394,7 +393,7 @@ class EbookConverter(Converter):
         if not content:
             raise ConversionError("這本 EPUB 沒有可抽取的文字（可能全部是圖片）。")
 
-        dest = resolve_output(source, ctx.output_dir, "txt", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, "txt")
         ctx.track(dest)
         write_text(dest, content + "\n")
         ctx.report(1.0, "完成")
@@ -470,7 +469,7 @@ class EbookConverter(Converter):
             html_path = root / "_openconvert.html"
             write_text(html_path, markup.html_document(body, source.stem))
 
-            dest = resolve_output(source, ctx.output_dir, "pdf", overwrite=ctx.overwrite)
+            dest = ctx.resolve_output(source, "pdf")
             ctx.track(dest)
             ctx.report(0.4, "排版中")
             office.convert_to(tools, html_path, dest, "pdf")
@@ -504,7 +503,7 @@ class EbookConverter(Converter):
             raise ConversionError(f"「{source.name}」沒有可放進電子書的內容。")
 
         chapters = _split_chapters(body, source.stem)
-        dest = resolve_output(source, ctx.output_dir, "epub", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, "epub")
         ctx.track(dest)
 
         title = str(ctx.option("title") or source.stem)

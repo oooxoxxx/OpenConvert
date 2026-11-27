@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openconvert"
-version = "0.7.5"
+version = "0.10.0"
 description = "免費、開源、跨平台的通用檔案轉換工具（影片／音訊／圖片／PDF／電子書／文件／資料／字幕／字型／壓縮）"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -54,6 +54,8 @@ dependencies = [
     "fonttools>=4.50",
     "brotli>=1.1",
     "cryptography>=42",
+    "py7zr>=1.1.4,<2",
+    "zstandard>=0.25,<1",
 ]
 
 [project.optional-dependencies]

@@ -1,7 +1,7 @@
 """轉換主頁。
 
 設計原則：
-- 格式選擇兩段式（類別 → 格式）加上搜尋，95 個目標不再靠捲動尋找。
+- 格式選擇兩段式（類別 → 格式）加上搜尋，100 個目標不再靠捲動尋找。
 - 選項面板依「目前會執行的轉換」動態重建，只顯示需要的欄位，不留空位。
 - 輸出資料夾與「開始轉換」放在同一區，動線一氣呵成。
 - 表格中每個工作可以個別改目標（覆寫全域設定），失敗可重試。
@@ -102,6 +102,7 @@ _OPTION_DEFAULTS: dict[str, object] = {
     "dpi": 150,
     "pdf_password": "",
     "sheet": "",
+    "split_pages": 1,
 }
 
 _OPTION_LABELS: dict[str, str] = {
@@ -120,6 +121,7 @@ _OPTION_LABELS: dict[str, str] = {
     "dpi": "PDF 解析度",
     "pdf_password": "PDF 密碼",
     "sheet": "工作表",
+    "split_pages": "每份頁數",
 }
 
 
@@ -156,6 +158,8 @@ def _option_keys_for(spec: TargetSpec) -> list[str]:
         keys.append("dpi")
     if token in ("pdf-encrypt", "pdf-decrypt"):
         keys.append("pdf_password")
+    if token == "pdf-split":
+        keys.append("split_pages")
     if converter == "data":
         keys.append("sheet")
     return keys
@@ -270,6 +274,9 @@ class ConvertPage(QWidget):
         self._table.openRequested.connect(self._open_job)
         self._table.retryRequested.connect(self._retry_job)
         self._table.removeRequested.connect(self._remove_job)
+        self._table.moveUp.connect(lambda jid: self._move_job(jid, -1))
+        self._table.moveDown.connect(lambda jid: self._move_job(jid, 1))
+        self._table.orderChanged.connect(self._apply_job_order)
         self._table.targetChanged.connect(self._on_job_target_changed)
 
         self._stack = QStackedWidget()
@@ -631,6 +638,8 @@ class ConvertPage(QWidget):
                 widget = QLineEdit()
                 widget.setEchoMode(QLineEdit.EchoMode.Password)
                 widget.setPlaceholderText("輸入密碼")
+            elif key == "split_pages":
+                widget = self._make_spin(1, 999, 1, " 頁")
             elif key == "sheet":
                 widget = QLineEdit()
                 widget.setPlaceholderText("工作表名稱（留空表示第一個工作表）")
@@ -702,8 +711,11 @@ class ConvertPage(QWidget):
             options["dpi"] = widgets["dpi"].currentData() or 150
         if "pdf_password" in widgets:
             options["pdf_password"] = widgets["pdf_password"].text()
+        if "split_pages" in widgets:
+            options["split_pages"] = widgets["split_pages"].value()
         if "sheet" in widgets:
             options["sheet"] = widgets["sheet"].text().strip()
+        options["filename_template"] = self._settings.filename_template or ""
         return options
 
     # ------------------------------------------------------------------ 規劃
@@ -735,6 +747,7 @@ class ConvertPage(QWidget):
             files = [path for path in self._files if self._effective_token(path) == token]
             for group in plan_groups(spec, files):
                 job = Job.create(group, spec, options)
+                job.options["_job_index"] = len(pending) + 1
                 if spec.group_kinds:
                     eligible = sum(1 for source in group if spec.is_group(source))
                     if eligible < spec.group_min:
@@ -859,6 +872,36 @@ class ConvertPage(QWidget):
         self._refresh_format_combo()
         self._replan()
 
+    def _move_job(self, job_id: str, delta: int) -> None:
+        """把某個工作往上／下移一位。"""
+        index = next((i for i, job in enumerate(self._jobs) if job.id == job_id), -1)
+        target = index + delta
+        if index < 0 or target < 0 or target >= len(self._jobs):
+            return
+        order = [job.id for job in self._jobs]
+        order[index], order[target] = order[target], order[index]
+        self._apply_job_order(order)
+
+    def _apply_job_order(self, order: list[str]) -> None:
+        """套用拖放後的工作順序，並同步來源檔順序供後續合併使用。"""
+        if self._running:
+            self._notify("轉換進行中，無法調整順序。", "warning")
+            return
+        jobs_by_id = {job.id: job for job in self._jobs}
+        if len(order) != len(self._jobs) or set(order) != set(jobs_by_id):
+            return
+
+        self._jobs = [jobs_by_id[job_id] for job_id in order]
+        pending_files = set(self._files)
+        ordered_files: list[Path] = []
+        for job in self._jobs:
+            for source in job.sources:
+                if source in pending_files and source not in ordered_files:
+                    ordered_files.append(source)
+        ordered_files.extend(path for path in self._files if path not in ordered_files)
+        self._files = ordered_files
+        self._table.set_jobs(self._jobs)
+
     def _forget_files(self, sources: list[Path]) -> None:
         for source in sources:
             self._files = [path for path in self._files if path.resolve() != Path(source).resolve()]
@@ -928,6 +971,7 @@ class ConvertPage(QWidget):
         self._clear_button.setEnabled(bool(self._jobs) and not self._running)
         self._target_combo.setEnabled(bool(self._tokens) and not self._running)
         self._card.setEnabled(not self._running)
+        self._table.set_reordering_enabled(not self._running)
 
         self._stack.setCurrentIndex(1 if self._jobs else 0)
         self._update_summary()

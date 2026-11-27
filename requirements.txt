@@ -17,5 +17,7 @@ markdownify>=0.11
 fonttools>=4.50
 brotli>=1.1
 cryptography>=42
+py7zr>=1.1.4,<2
+zstandard>=0.25,<1
 
 # 開發環境請安裝：pip install -r requirements-dev.txt

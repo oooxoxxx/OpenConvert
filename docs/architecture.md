@@ -46,7 +46,7 @@ openconvert/
 ├── core/
 │   ├── errors.py        # 例外階層
 │   ├── kinds.py         # 檔案類型判定（副檔名 → MediaKind）
-│   ├── targets.py       # 目標宣告（82 個目標、分組規則、預設選擇）
+│   ├── targets.py       # 目標宣告（100 個目標、分組規則、預設選擇）
 │   ├── job.py           # Job 資料模型與狀態
 │   ├── paths.py         # 輸出路徑、唯一檔名、安全檢查
 │   ├── settings.py      # 使用者設定（JSON 持久化）
@@ -68,10 +68,10 @@ openconvert/
 │   ├── pdf.py           # PDF
 │   ├── ebook.py         # CBZ / EPUB
 │   ├── document.py      # Markdown / HTML / DOCX / Office
-│   ├── data.py          # CSV / JSON / XLSX / YAML / TOML
+│   ├── data.py          # CSV / JSON / XML / SQLite / XLSX / YAML / TOML
 │   ├── subtitle.py      # SRT / VTT / ASS
 │   ├── font.py          # TTF / OTF / WOFF / WOFF2
-│   ├── archive.py       # ZIP / tar.gz
+│   ├── archive.py       # ZIP / 7z / tar.gz / tar.zst 與解壓
 │   └── markup.py        # Markdown／HTML 共用工具
 ├── gui/
 │   ├── main_window.py

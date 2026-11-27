@@ -184,6 +184,15 @@ class SettingsPage(QWidget):
         row_layout.addWidget(reset)
         layout.addWidget(row)
 
+        self._filename_template_edit = QLineEdit()
+        self._filename_template_edit.setPlaceholderText("{name}.{ext}（也可用 {date} {time} {index}）")
+        self._filename_template_edit.setToolTip(
+            "輸出檔名樣板：{name} 來源主檔名、{ext} 目標副檔名、{date} YYYYMMDD、"
+            "{time} HHMMSS、{index} 工作序號。留空表示沿用來源主檔名。"
+        )
+        self._filename_template_edit.editingFinished.connect(self._save)
+        layout.addWidget(self._row("檔名樣板", self._filename_template_edit))
+
         self._open_output_button = QPushButton("開啟輸出資料夾")
         self._open_output_button.setObjectName("Ghost")
         self._open_output_button.clicked.connect(self._open_output_dir)
@@ -441,6 +450,7 @@ class SettingsPage(QWidget):
         self._ffmpeg_edit.setText(settings.ffmpeg_path or "")
         self._ffprobe_edit.setText(settings.ffprobe_path or "")
         self._office_edit.setText(settings.office_path or "")
+        self._filename_template_edit.setText(settings.filename_template or "")
         self._keep_history.setChecked(settings.keep_history)
         self._play_sound.setChecked(settings.play_sound)
         self._update_status()
@@ -494,6 +504,7 @@ class SettingsPage(QWidget):
         settings.ffmpeg_path = self._ffmpeg_edit.text().strip() or None
         settings.ffprobe_path = self._ffprobe_edit.text().strip() or None
         settings.office_path = self._office_edit.text().strip() or None
+        settings.filename_template = self._filename_template_edit.text().strip()
         settings.keep_history = self._keep_history.isChecked()
         settings.play_sound = self._play_sound.isChecked()
         settings.save()

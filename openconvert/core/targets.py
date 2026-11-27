@@ -528,6 +528,15 @@ TARGETS: tuple[TargetSpec, ...] = (
         frozenset({Pdf}),
         description="重新壓縮 PDF 內容串流以縮小檔案（不影響版面）",
     ),
+    TargetSpec(
+        "pdf-split",
+        "PDF 分割",
+        "PDF",
+        "pdf",
+        "pdf",
+        frozenset({Pdf}),
+        description="每 N 頁輸出成獨立 PDF（另存到新資料夾）",
+    ),
     # ---------------------------------------------------------------- 電子書
     TargetSpec(
         "epub",
@@ -747,7 +756,7 @@ TARGETS: tuple[TargetSpec, ...] = (
         "data",
         "json",
         DATA_KINDS,
-        description="CSV／TSV／XLSX／YAML／TOML → JSON",
+        description="CSV／TSV／XML／SQLite／XLSX／YAML／TOML → JSON",
     ),
     TargetSpec(
         "data-csv",
@@ -756,7 +765,7 @@ TARGETS: tuple[TargetSpec, ...] = (
         "data",
         "csv",
         DATA_KINDS,
-        description="JSON／XLSX／TSV／YAML → CSV",
+        description="JSON／XML／SQLite／XLSX／TSV／YAML → CSV",
     ),
     TargetSpec(
         "data-xlsx",
@@ -765,7 +774,7 @@ TARGETS: tuple[TargetSpec, ...] = (
         "data",
         "xlsx",
         DATA_KINDS,
-        description="CSV／TSV／JSON → Excel 活頁簿",
+        description="CSV／TSV／JSON／XML／SQLite → Excel 活頁簿",
     ),
     TargetSpec(
         "data-yaml",
@@ -774,7 +783,7 @@ TARGETS: tuple[TargetSpec, ...] = (
         "data",
         "yaml",
         DATA_KINDS,
-        description="JSON／TOML／XLSX → YAML",
+        description="JSON／XML／SQLite／TOML／XLSX → YAML",
     ),
     TargetSpec(
         "data-toml",
@@ -783,7 +792,16 @@ TARGETS: tuple[TargetSpec, ...] = (
         "data",
         "toml",
         DATA_KINDS,
-        description="JSON／YAML → TOML",
+        description="JSON／XML／YAML／SQLite → TOML",
+    ),
+    TargetSpec(
+        "data-xml",
+        "轉成 XML",
+        "資料",
+        "data",
+        "xml",
+        DATA_KINDS,
+        description="CSV／JSON／XLSX／YAML／TOML／SQLite → XML",
     ),
     # ---------------------------------------------------------------- 字幕
     TargetSpec(
@@ -864,6 +882,37 @@ TARGETS: tuple[TargetSpec, ...] = (
         group_min=1,
         description="Unix 常見的壓縮封存格式",
     ),
+    TargetSpec(
+        "archive-7z",
+        "打包成 7z",
+        "壓縮",
+        "archive",
+        "7z",
+        frozenset(ALL_KINDS),
+        group_kinds=frozenset(ALL_KINDS),
+        group_min=1,
+        description="壓縮率較高的 7z 封存格式（需要 py7zr）",
+    ),
+    TargetSpec(
+        "archive-tar-zst",
+        "打包成 tar.zst",
+        "壓縮",
+        "archive",
+        "tar.zst",
+        frozenset(ALL_KINDS),
+        group_kinds=frozenset(ALL_KINDS),
+        group_min=1,
+        description="Zstandard 壓縮的 tar 封存（需要 zstandard）",
+    ),
+    TargetSpec(
+        "archive-extract",
+        "解壓壓縮檔",
+        "壓縮",
+        "archive",
+        "dir",
+        frozenset({MediaKind.ARCHIVE}),
+        description="把 ZIP／7z／tar.gz／tar.zst 等解壓到獨立資料夾（多輸出）",
+    ),
 )
 
 TARGETS_BY_TOKEN: dict[str, TargetSpec] = {spec.token: spec for spec in TARGETS}
@@ -916,10 +965,18 @@ def preferred_target(paths: list[str] | list[Path], last_token: str | None) -> T
     options = available_targets(paths)
     if not options:
         return None
+
     if last_token:
         for spec in options:
             if spec.token == last_token:
                 return spec
+
+    # 壓縮檔本身最常用的是「解壓」，不是再打包成另一種壓縮檔。
+    # 無效或不適用的 last_token（例如預設 mp4）不應蓋過這個選擇。
+    extract = target_by_token("archive-extract")
+    if extract in options and all(extract.accepts(path) for path in paths):
+        return extract
+
     source_exts = {_normalized_ext(Path(p).suffix) for p in paths}
     for spec in options:
         if spec.extension not in source_exts:

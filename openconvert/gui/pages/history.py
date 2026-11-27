@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -27,6 +28,7 @@ class HistoryPage(QWidget):
         super().__init__(parent)
         self._notify = notify
         self._entries: list[history.HistoryEntry] = []
+        self._visible_entries: list[history.HistoryEntry] = []
         self._build_ui()
         self.refresh()
 
@@ -63,6 +65,12 @@ class HistoryPage(QWidget):
         header.addWidget(clear, 0, Qt.AlignmentFlag.AlignBottom)
         root.addLayout(header)
 
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText("搜尋檔名或格式…")
+        self._search_edit.setClearButtonEnabled(True)
+        self._search_edit.textChanged.connect(self.refresh)
+        root.addWidget(self._search_edit)
+
         self._table = QTableWidget(0, 5)
         self._table.setObjectName("HistoryTable")
         self._table.setHorizontalHeaderLabels(("時間", "檔案", "目標", "結果", "耗時"))
@@ -95,12 +103,22 @@ class HistoryPage(QWidget):
 
     def refresh(self) -> None:
         self._entries = history.load_entries(limit=300)
-        self._table.setRowCount(len(self._entries))
-        self._open_button.setEnabled(bool(self._entries))
-        self._empty.setVisible(not self._entries)
-        self._table.setVisible(bool(self._entries))
+        query = self._search_edit.text().strip().lower()
+        filtered = [
+            entry
+            for entry in self._entries
+            if not query
+            or any(query in str(source).lower() for source in entry.sources)
+            or query in entry.target_label.lower()
+            or query in _status_label(entry.status).lower()
+        ]
+        self._visible_entries = filtered
+        self._table.setRowCount(len(filtered))
+        self._open_button.setEnabled(bool(filtered))
+        self._empty.setVisible(not filtered)
+        self._table.setVisible(bool(filtered))
 
-        for row, entry in enumerate(self._entries):
+        for row, entry in enumerate(filtered):
             self._table.setItem(row, 0, QTableWidgetItem(entry.when))
             name = "、".join(_basename(p) for p in entry.sources[:2])
             if len(entry.sources) > 2:
@@ -122,9 +140,9 @@ class HistoryPage(QWidget):
 
     def _selected_entry(self) -> history.HistoryEntry | None:
         rows = sorted({index.row() for index in self._table.selectedIndexes()})
-        if not rows or rows[0] >= len(self._entries):
+        if not rows or rows[0] >= len(self._visible_entries):
             return None
-        return self._entries[rows[0]]
+        return self._visible_entries[rows[0]]
 
     def _open_selected(self) -> None:
         entry = self._selected_entry()

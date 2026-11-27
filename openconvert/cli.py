@@ -49,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--pdf-password", default="", help="PDF 加密／解除密碼用的密碼")
     convert.add_argument("--pages", default="", help="PDF 抽取頁碼，例如 1-3,7")
     convert.add_argument("--dpi", type=int, default=150, help="PDF 轉圖片的解析度")
+    convert.add_argument("--split-pages", type=int, default=1, help="PDF 分割的每份頁數（預設 1）")
+    convert.add_argument(
+        "--name-template",
+        default="",
+        help="輸出檔名樣板（可用 {name} {ext} {date} {time} {index}）",
+    )
     convert.add_argument("--overwrite", action="store_true", help="允許覆蓋同名輸出檔")
     convert.add_argument("--ffmpeg", help="指定 ffmpeg 執行檔路徑")
     convert.add_argument("--ffprobe", help="指定 ffprobe 執行檔路徑")
@@ -156,6 +162,8 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         "video_fps": fps or 30,
         "frame_seconds": args.frame_seconds,
         "sheet": args.sheet,
+        "split_pages": args.split_pages,
+        "filename_template": args.name_template,
         "rotate_degrees": int(rotate_raw) if rotate_raw in ("90", "180", "270") else rotate_raw,
         "rotate_mode": rotate_raw,
         "flip_axis": str(args.flip or "").strip().lower(),
@@ -170,6 +178,7 @@ def _cmd_convert(args: argparse.Namespace) -> int:
     failed = 0
 
     for index, group in enumerate(groups, start=1):
+        options["_job_index"] = index
         job = Job.create(group, spec, options)
         prefix = f"[{index}/{len(groups)}] {job.display_name} → {spec.label}"
 

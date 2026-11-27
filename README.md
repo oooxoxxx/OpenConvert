@@ -6,7 +6,11 @@
 - **不需要付費 API**：只使用 FFmpeg、Pillow、pypdf、fontTools 等開源元件。
 - **圖形介面 + 命令列**：桌面使用者拖放即可轉換，腳本與伺服器可用 `openconvert convert`。
 
-目前版本 **0.7.5（Beta）**，共 **95 個目標格式**、77 種來源副檔名，已通過 220 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+目前版本 **0.10.0（Beta）**，共 **100 個目標格式**、92 種來源副檔名，已通過 251 個自動化測試（引擎、GUI 煙霧測試、CLI 端對端）。
+
+**0.10.0 資料／壓縮補完**：XML 可與 JSON／CSV／XLSX／YAML／TOML 互轉，SQLite 可唯讀
+取出指定資料表；新增 7z／tar.zst 打包、多格式解壓與 PDF 分割。介面加入拖放排序、
+輸出檔名樣板與歷史搜尋。
 
 **0.7.0 介面大改版**：格式選擇改為兩段式（類別 → 格式）並支援搜尋；選項面板只顯示
 需要的欄位；輸出資料夾與「開始轉換」放在一起；佇列中**每個工作可個別改目標**、
@@ -42,18 +46,18 @@ Signing）與 PFX 憑證自動簽章，簽章後可大幅減少 SmartScreen「�
 | 影片編輯 | 合併多支影片、截取片段（起訖時間）、旋轉／翻轉、抽出影格（PNG）、整批圖片合成 MP4 |
 | 音訊 | MP3／M4A／M4B／AAC／WAV／FLAC／OGG／Opus／AIFF／WMA／AC3，可從影片抽音軌、合併多檔 |
 | 圖片 | PNG／JPEG／WebP／AVIF／HEIC／BMP／TIFF／ICO／GIF／APNG，旋轉／翻轉／裁切比例、透明背景、縮放、合併 PDF |
-| PDF | 合併、抽頁、轉 PNG／JPEG／文字／CBZ、加密（AES）、解除密碼、壓縮 |
+| PDF | 合併、抽頁、每 N 頁分割、轉 PNG／JPEG／文字／CBZ、加密（AES）、解除密碼、壓縮 |
 | 電子書 | CBZ ⇄ EPUB、CBZ → PDF、EPUB → PDF、EPUB → 純文字、文字／Markdown／HTML → EPUB（自動分章） |
 | 文件 | Markdown ⇄ HTML、Markdown／HTML → DOCX、HTML／DOCX → 純文字或 Markdown、DOCX → HTML |
 | Office（需 LibreOffice） | DOCX／DOC／ODT／RTF／PPTX／ODP → PDF，DOC ⇄ DOCX、DOCX ⇄ ODT、XLS ⇄ XLSX、XLSX ⇄ ODS |
-| 資料 | CSV／TSV／JSON／XLSX／ODS／YAML／TOML 互相轉換（可指定工作表） |
+| 資料 | CSV／TSV／JSON／XML／XLSX／ODS／YAML／TOML 互轉；SQLite → CSV／JSON／XML 等（可指定工作表／資料表） |
 | 字幕 | SRT／WebVTT／ASS 互轉，自動辨識 Big5／GB18030 等編碼 |
 | 字型 | TTF／OTF／WOFF／WOFF2 互轉（無損） |
-| 壓縮 | 把整批檔案打包成 ZIP 或 tar.gz |
+| 壓縮 | 打包 ZIP／7z／tar.gz／tar.zst；解壓 ZIP／7z／tar 與常見壓縮變體，阻擋不安全路徑 |
 | 檔案資訊 | FFprobe 中繼資料、圖片尺寸、PDF 頁數、文字編碼、字型家族… |
-| 批次 | 佇列、逐檔進度、整體進度、單筆取消／全部取消 |
+| 批次 | 拖放排序、逐檔進度、整體進度、單筆取消／全部取消、自訂輸出檔名樣板 |
 | 錯誤處理 | 人性化錯誤訊息、失敗原因記錄、自動清除半成品 |
-| 紀錄 | 轉換歷史、輸出位置、開啟資料夾、清除紀錄 |
+| 紀錄 | 轉換歷史搜尋、輸出位置、開啟資料夾、清除紀錄 |
 
 完整格式清單與選項說明見 [`docs/formats.md`](docs/formats.md)。
 
@@ -100,9 +104,9 @@ pip install -e .
 openconvert
 ```
 
-1. 拖放檔案到視窗（或按「加入檔案」）。
+1. 拖放檔案到視窗（或按「加入檔案」）；工作列可再拖放排序，右鍵也能上移／下移。
 2. 在「目標格式」選擇要轉成的格式；下方選項會依格式自動顯示。
-3. 需要時指定輸出資料夾（預設與來源相同）。
+3. 需要時指定輸出資料夾（預設與來源相同）；「設定 → 輸出位置」可設定檔名樣板。
 4. 按「開始轉換」，在佇列中查看進度；可隨時取消單筆或全部。
 
 ### 命令列
@@ -134,14 +138,21 @@ openconvert-cli convert report.docx -t docx-md -o out
 # DOCX 轉 PDF（需要 LibreOffice）
 openconvert-cli convert report.docx -t docx-pdf -o out
 
-# CSV 轉 JSON；試算表指定工作表後轉 CSV
+# CSV／XML 轉 JSON；SQLite 指定資料表；JSON 轉 XML
 openconvert-cli convert data.csv -t data-json -o out
-openconvert-cli convert book.xlsx -t data-csv --sheet 成績 -o out
+openconvert-cli convert data.xml -t data-json -o out
+openconvert-cli convert app.sqlite -t data-csv --sheet scores -o out
+openconvert-cli convert data.json -t data-xml -o out
 
-# 字幕轉換；字型轉 WOFF2；打包整批檔案
+# PDF 每 5 頁分割；自訂輸出檔名樣板
+openconvert-cli convert report.pdf -t pdf-split --split-pages 5 -o out
+openconvert-cli convert photo.png -t jpg --name-template "{name}_{index}.{ext}" -o out
+
+# 字幕轉換；字型轉 WOFF2；打包與解壓
 openconvert-cli convert movie.srt -t sub-vtt -o out
 openconvert-cli convert font.ttf -t font-woff2 -o out
-openconvert-cli convert photos\ -t zip -o out
+openconvert-cli convert photos\ -t archive-7z -o out
+openconvert-cli convert bundle.tar.zst -t archive-extract -o out
 
 # 影片抽出每秒 2 張影格；整批圖片合成 30fps 影片
 openconvert-cli convert clip.mp4 -t video-frames --fps 2 -o out
@@ -158,7 +169,8 @@ openconvert-cli probe clip.mp4
 - **絕不覆蓋原始檔**：輸出檔名若與來源相同，會加上 `_converted`。
 - **預設不覆蓋既有檔案**：同名輸出自動編號為 `名稱 (1).jpg`、`名稱 (2).jpg`。
 - 覆寫必須由使用者在「設定」明確開啟，命令列則需加 `--overwrite`。
-- 多輸出轉換（PDF → 圖片）一律建立新的輸出資料夾，不與既有檔案混在一起。
+- 多輸出轉換（PDF → 圖片、PDF 分割、解壓）一律建立新的輸出資料夾，不與既有檔案混在一起。
+- 解壓時會略過絕對路徑、磁碟機路徑與 `..` 上層跳脫等不安全項目。
 - 轉換失敗或中途取消時，本次產生的輸出會被刪除，不留下半成品。
 
 ## 設定與資料位置
@@ -175,7 +187,7 @@ openconvert-cli probe clip.mp4
 
 ```powershell
 pip install -r requirements-dev.txt
-.venv\Scripts\python.exe -m pytest -q        # 220 tests
+.venv\Scripts\python.exe -m pytest -q        # 251 tests
 .venv\Scripts\ruff.exe check .               # lint
 .venv\Scripts\ruff.exe format --check .      # 格式檢查
 ```
@@ -238,6 +250,8 @@ scripts/        # 開發輔助工具（截圖預覽、引擎資產收集）
 | beautifulsoup4 / markdownify | MIT | HTML 解析與轉 Markdown |
 | fonttools | MIT | 字型格式轉換 |
 | brotli | MIT | WOFF2 壓縮 |
+| py7zr | LGPL-2.1-or-later | 7z 打包與解壓 |
+| zstandard | BSD-3-Clause | tar.zst 壓縮與解壓 |
 | platformdirs | MIT | 跨平台設定路徑 |
 | FFmpeg | **GPL-3.0-or-later** | 影片、音訊編碼與探測（模組，按需下載） |
 | LibreOffice | **MPL-2.0** | Office 文件排版與轉換（模組，按需下載） |

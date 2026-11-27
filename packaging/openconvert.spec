@@ -16,7 +16,7 @@ LibreOffice 由使用者自行安裝（Office 文件轉換才會用到）。
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - SPECPATH 由 PyInstaller 注入
 
@@ -47,6 +47,9 @@ HIDDEN_IMPORTS = [
     "fontTools.ttLib",
     "brotli",
 ]
+# py7zr 的壓縮器與 zstandard 的原生後端會在執行期動態載入。
+HIDDEN_IMPORTS += collect_submodules("py7zr")
+HIDDEN_IMPORTS += collect_submodules("zstandard")
 
 EXCLUDES = [
     "tkinter",

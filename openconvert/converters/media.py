@@ -14,7 +14,7 @@ from PIL import Image, ImageOps
 
 from ..core.errors import ConversionError, FFmpegNotFoundError, InvalidInputError
 from ..core.ffmpeg import MediaInfo, probe, run_ffmpeg
-from ..core.paths import resolve_output, resolve_output_dir
+from ..core.paths import resolve_output_dir
 from ..core.sorting import natural_key
 from .base import ConvertContext, Converter
 
@@ -134,7 +134,7 @@ class MediaConverter(Converter):
         if info is not None and info.audio_stream is None:
             raise ConversionError(f"「{source.name}」中沒有音訊串流。")
 
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
         codec = AUDIO_CODECS[token]
 
@@ -174,7 +174,7 @@ class MediaConverter(Converter):
         if info is not None and info.video_stream is None:
             raise ConversionError(f"「{source.name}」中沒有視訊串流。")
 
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
 
         filters: list[str] = []
@@ -335,7 +335,7 @@ class MediaConverter(Converter):
 
         first = sources[0]
         name = f"{first.stem}_video" if len(sources) > 1 else first.stem
-        dest = resolve_output(first.with_name(name), ctx.output_dir, "mp4", overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(first.with_name(name), "mp4")
         ctx.track(dest)
 
         with tempfile.TemporaryDirectory(prefix="openconvert-slides-") as folder:
@@ -475,12 +475,7 @@ class MediaConverter(Converter):
         all_audio = all(info.audio_stream is not None for info in infos)
 
         first_source = sources[0]
-        dest = resolve_output(
-            first_source.with_name(f"{first_source.stem}_merged"),
-            ctx.output_dir,
-            "mp4",
-            overwrite=ctx.overwrite,
-        )
+        dest = ctx.resolve_output(first_source.with_name(f"{first_source.stem}_merged"), "mp4")
         ctx.track(dest)
 
         if same_codec:
@@ -591,9 +586,7 @@ class MediaConverter(Converter):
         chains.append("".join(f"[a{i}]" for i in range(len(sources))) + f"concat=n={len(sources)}:v=0:a=1[a]")
 
         first = sources[0]
-        dest = resolve_output(
-            first.with_name(f"{first.stem}_merged"), ctx.output_dir, "mp3", overwrite=ctx.overwrite
-        )
+        dest = ctx.resolve_output(first.with_name(f"{first.stem}_merged"), "mp3")
         ctx.track(dest)
 
         args: list[str] = []
@@ -641,9 +634,7 @@ class MediaConverter(Converter):
         if duration and end > duration + 0.5:
             raise InvalidInputError(f"結束時間 {end:.1f} 秒超過影片長度 {duration:.1f} 秒。")
 
-        dest = resolve_output(
-            source.with_name(f"{source.stem}_split"), ctx.output_dir, "mp4", overwrite=ctx.overwrite
-        )
+        dest = ctx.resolve_output(source.with_name(f"{source.stem}_split"), "mp4")
         ctx.track(dest)
 
         args = [
@@ -702,9 +693,7 @@ class MediaConverter(Converter):
             raise ConversionError(f"「{source.name}」中沒有視訊串流。")
         duration = info.duration
 
-        dest = resolve_output(
-            source.with_name(f"{source.stem}_rotated"), ctx.output_dir, "mp4", overwrite=ctx.overwrite
-        )
+        dest = ctx.resolve_output(source.with_name(f"{source.stem}_rotated"), "mp4")
         ctx.track(dest)
 
         args = [

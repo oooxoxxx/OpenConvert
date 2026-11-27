@@ -1,7 +1,7 @@
-"""資料轉換：CSV／TSV、JSON、XLSX、YAML、TOML。
+"""資料轉換：CSV／TSV、JSON、XML、SQLite、XLSX、YAML、TOML。
 
-表格型來源（CSV／TSV／XLSX）第一列視為欄位名稱；結構型來源
-（JSON／YAML／TOML）則盡量保留原本的巢狀結構。
+表格型來源（CSV／TSV／XLSX／SQLite）第一列視為欄位名稱；結構型來源
+（JSON／XML／YAML／TOML）則盡量保留原本的巢狀結構。
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import zipfile
 from datetime import date, datetime
 from pathlib import Path
@@ -18,7 +19,6 @@ from xml.etree import ElementTree as ET
 import yaml
 
 from ..core.errors import ConversionError, InvalidInputError
-from ..core.paths import resolve_output
 from ..core.textio import read_text, write_text
 from .base import ConvertContext, Converter
 
@@ -202,6 +202,81 @@ def _read_structured(path: Path, extension: str) -> Any:
     raise ConversionError(f"不支援的資料格式：{extension}")  # pragma: no cover
 
 
+def _read_xml(path: Path) -> Any:
+    """讀取 XML：根元素的每個子元素是一筆記錄（屬性＋子元素）。"""
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError) as exc:
+        raise ConversionError(f"「{path.name}」不是有效的 XML：{exc}", detail=str(exc)) from exc
+
+    children = list(root)
+    if not children:
+        return _xml_record(root)
+    return [_xml_record(child) for child in children]
+
+
+def _xml_record(element: ET.Element) -> Any:
+    """把一個 XML 元素轉成 dict（或純文字）。保留屬性與子元素；重複子標籤會變成陣列。"""
+    record: dict[str, Any] = dict(element.attrib)
+    children = list(element)
+    if children:
+        seen: dict[str, Any] = {}
+        for child in children:
+            value = _xml_value(child)
+            if child.tag in seen:
+                existing = seen[child.tag]
+                if not isinstance(existing, list):
+                    seen[child.tag] = [existing]
+                seen[child.tag].append(value)
+            else:
+                seen[child.tag] = value
+        record.update(seen)
+    if not record:
+        return (element.text or "").strip()
+    return record
+
+
+def _xml_value(element: ET.Element) -> Any:
+    if list(element) or element.attrib:
+        return _xml_record(element)
+    return (element.text or "").strip()
+
+
+def _read_sqlite(path: Path, sheet: str | None) -> tuple[list[str], list[list[Any]]]:
+    """讀取 SQLite 資料庫：以唯讀模式開啟，取出指定資料表。"""
+    import sqlite3
+
+    try:
+        connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error as exc:
+        raise ConversionError(f"無法開啟 SQLite 檔案「{path.name}」：{exc}", detail=str(exc)) from exc
+
+    try:
+        tables = [
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        ]
+        if not tables:
+            raise ConversionError(f"「{path.name}」中沒有任何資料表。")
+        table = sheet or tables[0]
+        if sheet and sheet not in tables:
+            raise InvalidInputError(
+                f"「{path.name}」沒有資料表「{sheet}」。可用的資料表：{'、'.join(tables)}"
+            )
+        safe_table = table.replace('"', '""')
+        try:
+            cursor = connection.execute(f'SELECT * FROM "{safe_table}"')
+        except sqlite3.Error as exc:
+            raise ConversionError(f"讀取資料表失敗：{exc}", detail=str(exc)) from exc
+        header = [column[0] for column in cursor.description]
+        rows = [list(row) for row in cursor.fetchall()]
+        return header, rows
+    finally:
+        connection.close()
+
+
 def load_source(path: Path, sheet: str | None = None) -> tuple[str, Any]:
     """回傳 ``("table", (欄位, 列))`` 或 ``("value", 物件)``。"""
     extension = path.suffix.lstrip(".").lower()
@@ -215,6 +290,11 @@ def load_source(path: Path, sheet: str | None = None) -> tuple[str, Any]:
         return "table", (header, rows)
     if extension in STRUCTURED_EXTENSIONS:
         return "value", _read_structured(path, extension)
+    if extension == "xml":
+        return "value", _read_xml(path)
+    if extension in ("db", "sqlite", "sqlite3"):
+        header, rows = _read_sqlite(path, sheet)
+        return "table", (header, rows)
     raise ConversionError(f"不支援的資料來源：{path.name}")
 
 
@@ -352,6 +432,57 @@ def _to_toml(kind: str, payload: Any) -> str:
         ) from exc
 
 
+def _xml_tag(key: Any) -> str:
+    """把任意欄位名稱整理成安全的 XML 標籤。"""
+    tag = re.sub(r"[^\w.-]", "_", str(key), flags=re.UNICODE)
+    if not tag:
+        return "field"
+    if not (tag[0].isalpha() or tag[0] == "_"):
+        tag = f"_{tag}"
+    return tag
+
+
+def _fill_xml(element: ET.Element, value: Any) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _append_xml(element, key, item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _append_xml(element, "item", item)
+    else:
+        element.text = _cell_text(value)
+
+
+def _append_xml(parent: ET.Element, key: Any, value: Any) -> None:
+    # 陣列使用重複標籤，讓 XML → JSON → XML 能保留相同的資料形狀。
+    if isinstance(value, (list, tuple)):
+        if not value:
+            ET.SubElement(parent, _xml_tag(key))
+        for item in value:
+            _append_xml(parent, key, item)
+        return
+    child = ET.SubElement(parent, _xml_tag(key))
+    _fill_xml(child, value)
+
+
+def _to_xml(kind: str, payload: Any) -> bytes:
+    data = _records(*payload) if kind == "table" else payload
+    if isinstance(data, list):
+        root = ET.Element("records")
+        for item in data:
+            child = ET.SubElement(root, "record")
+            _fill_xml(child, item)
+    else:
+        root = ET.Element("root")
+        _fill_xml(root, data)
+
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    buffer = io.BytesIO()
+    tree.write(buffer, encoding="utf-8", xml_declaration=True)
+    return buffer.getvalue() + b"\n"
+
+
 class DataConverter(Converter):
     name = "data"
 
@@ -366,7 +497,7 @@ class DataConverter(Converter):
         ctx.report(0.1, "讀取資料")
         kind, payload = load_source(source, sheet)
 
-        dest = resolve_output(source, ctx.output_dir, ctx.job.target.extension, overwrite=ctx.overwrite)
+        dest = ctx.resolve_output(source, ctx.job.target.extension)
         ctx.track(dest)
         ctx.report(0.6, "寫入檔案")
 
@@ -380,6 +511,11 @@ class DataConverter(Converter):
             write_text(dest, _to_toml(kind, payload))
         elif token == "data-xlsx":
             _to_xlsx(dest, kind, payload, sheet)
+        elif token == "data-xml":
+            try:
+                dest.write_bytes(_to_xml(kind, payload))
+            except OSError as exc:
+                raise ConversionError(f"無法寫入 XML：{exc}", detail=str(exc)) from exc
         else:
             raise ConversionError(f"不支援的資料目標：{token}")
 

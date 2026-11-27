@@ -54,6 +54,8 @@ class Settings:
     last_format: str = "mp4"
     window_geometry: str | None = None
     last_page: int = 0
+    #: 輸出檔名樣板（例如 ``{name}_converted.{ext}``；留空表示沿用來源主檔名）
+    filename_template: str = ""
     extra: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------ 驗證
@@ -67,6 +69,7 @@ class Settings:
             value = data.get(key)
             data[key] = str(value) if value else None
         data["last_page"] = max(0, int(self.last_page or 0))
+        data["filename_template"] = str(self.filename_template or "")
         data.pop("extra", None)
         return Settings(**data)
 

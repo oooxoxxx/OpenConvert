@@ -29,7 +29,7 @@ def sanitize_stem(stem: str) -> str:
     return cleaned
 
 
-_DOUBLE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz")
+_DOUBLE_SUFFIXES = (".tar.gz", ".tar.zst", ".tar.bz2", ".tar.xz")
 
 
 def unique_path(candidate: Path) -> Path:
@@ -76,6 +76,7 @@ def resolve_output(
     extension: str,
     *,
     overwrite: bool = False,
+    stem_override: str | None = None,
 ) -> Path:
     """決定單一輸出檔的路徑。
 
@@ -84,12 +85,19 @@ def resolve_output(
     1. 不會等於來源檔案。
     2. 預設情況下不會覆蓋既有檔案。
     3. 輸出目錄會被建立。
+
+    ``stem_override`` 可指定主檔名（來自檔名樣板）；為 ``None`` 時沿用來源主檔名。
     """
     ext = extension.lower().lstrip(".")
     base_dir = Path(output_dir) if output_dir else source.parent
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    candidate = base_dir / f"{sanitize_stem(source.stem)}.{ext}"
+    stem = stem_override if stem_override is not None else source.stem
+    if stem_override is not None and stem_override.lower().endswith(f".{ext}"):
+        # 樣板已含目標副檔名（或使用者自訂副檔名），不再重複附加
+        candidate = base_dir / sanitize_stem(stem_override)
+    else:
+        candidate = base_dir / f"{sanitize_stem(stem)}.{ext}"
 
     if _same_file(candidate, source):
         candidate = base_dir / f"{sanitize_stem(source.stem)}_converted.{ext}"

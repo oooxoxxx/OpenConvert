@@ -263,3 +263,75 @@ def test_inspect_page_loads_image(qtbot, tools, png_file: Path, notify):
     assert page._stack.currentIndex() == 1
     html = page._viewer.toHtml()
     assert "80" in html and "60" in html
+
+
+def test_job_table_drag_order_updates_jobs_and_files(qtbot, tools, png_file: Path, tmp_path: Path, notify):
+    from PIL import Image
+    from PySide6.QtWidgets import QAbstractItemView
+
+    second = tmp_path / "second.png"
+    third = tmp_path / "third.png"
+    Image.new("RGB", (20, 20), "green").save(second)
+    Image.new("RGB", (20, 20), "blue").save(third)
+
+    page = ConvertPage(Settings(), tools, ConversionQueue(Settings()), notify)
+    qtbot.addWidget(page)
+    page.add_paths([png_file, second, third])
+
+    first, second_id, third_id = [job.id for job in page._jobs]
+    assert page._table.dragDropMode() == QAbstractItemView.DragDropMode.InternalMove
+    order = page._table._order_after_drop([first], 3)
+    assert order == [second_id, third_id, first]
+
+    page._table.orderChanged.emit(order)
+    assert [job.id for job in page._jobs] == order
+    assert page._table.job_ids() == order
+    assert page._files == [second, third, png_file]
+
+    page._move_job(first, -1)
+    assert page._files == [second, png_file, third]
+
+
+def test_pdf_split_option_is_exposed(qtbot, tools, pdf_file: Path, notify):
+    page = ConvertPage(Settings(), tools, ConversionQueue(Settings()), notify)
+    qtbot.addWidget(page)
+    page.add_paths([pdf_file])
+    page._select_format_token("pdf-split")
+
+    assert "split_pages" in page._option_widgets
+    page._option_widgets["split_pages"].setValue(3)
+    assert page._collect_options()["split_pages"] == 3
+
+
+def test_filename_template_reaches_job_options(qtbot, tools, png_file: Path, notify):
+    settings = Settings(filename_template="{name}_{index}.{ext}")
+    page = ConvertPage(settings, tools, ConversionQueue(settings), notify)
+    qtbot.addWidget(page)
+    page.add_paths([png_file])
+
+    assert page._collect_options()["filename_template"] == "{name}_{index}.{ext}"
+    assert page._jobs[0].options["filename_template"] == "{name}_{index}.{ext}"
+
+
+def test_history_search_filters_and_selects_visible_entry(qtbot, monkeypatch, notify):
+    from openconvert.core import history
+    from openconvert.gui.pages.history import HistoryPage
+
+    entries = [
+        history.HistoryEntry(2, ["C:/tmp/video.mp4"], "MP4 影片", "done"),
+        history.HistoryEntry(1, ["C:/tmp/report.xml"], "轉成 JSON", "done"),
+    ]
+    monkeypatch.setattr(history, "load_entries", lambda limit: entries)
+    page = HistoryPage(notify)
+    qtbot.addWidget(page)
+
+    page._search_edit.setText("REPORT")
+    assert page._table.rowCount() == 1
+    assert page._table.item(0, 1).text() == "report.xml"
+    page._table.selectRow(0)
+    assert page._selected_entry() is entries[1]
+
+    page._search_edit.setText("沒有這個檔案")
+    assert page._table.rowCount() == 0
+    assert page._table.isHidden()
+    assert not page._empty.isHidden()

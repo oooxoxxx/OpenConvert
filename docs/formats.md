@@ -21,9 +21,10 @@
 | 網頁 | `.html` `.htm` |
 | Office 文件 | `.docx` `.doc` `.odt` `.rtf` `.pptx` `.ppt` `.odp` |
 | 試算表 | `.xlsx` `.xlsm` `.xls` `.ods` |
-| 資料 | `.csv` `.tsv` `.json` `.yaml` `.yml` `.toml` |
+| 資料 | `.csv` `.tsv` `.json` `.xml` `.yaml` `.yml` `.toml` `.db` `.sqlite` `.sqlite3` |
 | 字幕 | `.srt` `.vtt` `.ass` `.ssa` |
 | 字型 | `.ttf` `.otf` `.woff` `.woff2` |
+| 壓縮檔 | `.zip` `.7z` `.tar` `.gz` `.zst` `.bz2` `.xz` `.tgz` `.tbz` `.tbz2` `.txz` |
 | PDF | `.pdf` |
 | 電子書 | `.epub` `.cbz` |
 
@@ -109,6 +110,7 @@
 | `pdf-encrypt` | PDF 加密 | `.pdf` | — | 加上開啟密碼（AES-128，無 cryptography 時退回 RC4-128） |
 | `pdf-decrypt` | PDF 解除密碼 | `.pdf` | — | 移除開啟密碼（需填入原密碼） |
 | `pdf-compress` | PDF 壓縮 | `.pdf` | — | 重寫內容串流並移除重複物件以縮小檔案 |
+| `pdf-split` | PDF 分割 | 資料夾內的 `.pdf` | 多輸出 | 每 N 頁輸出一份獨立 PDF，預設每頁一份 |
 
 頁碼範圍語法：`1-3,7`、`5`、`2-`（第 2 頁到最後）。超出範圍或格式錯誤會回報清楚的錯誤訊息。
 
@@ -163,16 +165,20 @@ EPUB → CBZ 會依 spine 順序取出圖片；檔案損壞、不是 ZIP、或�
 
 ### 資料
 
-表格型來源（CSV／TSV／XLSX）第一列視為欄位名稱；結構型來源（JSON／YAML／TOML）盡量保留巢狀結構。
+表格型來源（CSV／TSV／XLSX／ODS）第一列視為欄位名稱；結構型來源（JSON／XML／YAML／TOML）
+盡量保留巢狀結構。XML 根元素的每個子元素視為一筆記錄，屬性與子元素都會保留，重複子標籤會
+轉成陣列；輸出 XML 時以 `<records><record>…` 表示記錄列表，含空白或非法字元的欄位名會清理成
+合法標籤（中文會保留）。SQLite 以**唯讀**方式開啟，`工作表`欄位在此用來指定資料表，留空表示第一個資料表。
 CSV 輸出使用 UTF-8 BOM，方便 Excel 直接開啟而不亂碼。
 
 | 代號 | 名稱 | 輸出 | 需求 | 說明 |
 | --- | --- | --- | --- | --- |
-| `data-json` | 轉成 JSON | `.json` | — | CSV／TSV／XLSX／YAML／TOML → JSON |
-| `data-csv` | 轉成 CSV | `.csv` | — | JSON／XLSX／TSV／YAML → CSV |
-| `data-xlsx` | 轉成 XLSX | `.xlsx` | — | CSV／TSV／JSON → Excel 活頁簿 |
-| `data-yaml` | 轉成 YAML | `.yaml` | — | JSON／TOML／XLSX → YAML |
-| `data-toml` | 轉成 TOML | `.toml` | — | JSON／YAML → TOML |
+| `data-json` | 轉成 JSON | `.json` | — | CSV／TSV／XML／SQLite／XLSX／YAML／TOML → JSON |
+| `data-csv` | 轉成 CSV | `.csv` | — | JSON／XML／SQLite／XLSX／TSV／YAML → CSV |
+| `data-xlsx` | 轉成 XLSX | `.xlsx` | — | CSV／TSV／JSON／XML／SQLite → Excel 活頁簿 |
+| `data-yaml` | 轉成 YAML | `.yaml` | — | JSON／XML／SQLite／TOML／XLSX → YAML |
+| `data-toml` | 轉成 TOML | `.toml` | — | JSON／XML／YAML／SQLite → TOML |
+| `data-xml` | 轉成 XML | `.xml` | — | CSV／JSON／XLSX／YAML／TOML／SQLite → XML |
 
 ### 字幕
 
@@ -202,8 +208,14 @@ OTF（CFF 輪廓）無法直接變成 TTF（TrueType 輪廓），遇到時會回
 | --- | --- | --- | --- | --- |
 | `zip` | 打包成 ZIP | `.zip` | 合併型 | 把佇列中的檔案合成一個 ZIP |
 | `tar-gz` | 打包成 tar.gz | `.tar.gz` | 合併型 | Unix 常見的壓縮封存格式 |
+| `archive-7z` | 打包成 7z | `.7z` | 合併型 | 以 py7zr 建立高壓縮率封存 |
+| `archive-tar-zst` | 打包成 tar.zst | `.tar.zst` | 合併型 | 以 Zstandard 壓縮的 tar 封存 |
+| `archive-extract` | 解壓壓縮檔 | 新資料夾 | 多輸出 | 解壓 ZIP／7z／tar／tar.gz／tar.zst／tar.bz2／tar.xz 與常見別名 |
 
-壓縮目標接受任何支援的檔案類型；同名檔案會自動加上序號避免覆蓋。
+打包目標接受任何支援的檔案類型；同名檔案會自動加上序號避免覆蓋。壓縮檔本身的預設目標是
+`archive-extract`。解壓會略過目錄項目與不安全路徑（絕對路徑、Windows 磁碟機、`..` 上層跳脫），
+整包沒有可解壓檔案時會明確失敗，不會把內容寫到輸出資料夾之外。7z 與 tar.zst 分別使用
+`py7zr`（LGPL）及 `zstandard`（BSD），不需要額外引擎。
 
 ## 選項
 
@@ -222,10 +234,12 @@ OTF（CFF 輪廓）無法直接變成 TTF（TrueType 輪廓），遇到時會回
 | 裁切比例 | `img-crop` | 16:9／4:3／1:1／3:2，置中裁切 |
 | 片段起訖 | `video-split` | 秒數或 `1:30`；結束必須晚於開始 |
 | PDF 密碼 | `pdf-encrypt`、`pdf-decrypt` | 加密或解除密碼用的密碼 |
-| 工作表 | `data-*`（來源為 ODS／XLSX） | 指定工作表名稱，留空表示第一個工作表 |
+| 每份頁數 | `pdf-split` | 每 N 頁輸出一份，必須是 1 以上整數（預設 1） |
+| 工作表／資料表 | `data-*`（來源為 ODS／XLSX／SQLite） | 指定工作表或資料表名稱，留空表示第一個 |
 | 輸出資料夾 | 全部 | 留空表示與來源檔案相同資料夾 |
+| 檔名樣板 | 單一檔案輸出 | 在設定頁或用 `--name-template`；支援 `{name}` `{ext}` `{date}` `{time}` `{index}` |
 
-命令列的對應參數為 `--quality`、`--max-size`、`--fps`、`--frame-seconds`、`--pages`、`--dpi`、`--sheet`、`--rotate`、`--flip`、`--crop`、`--start`、`--end`、`--pdf-password`；
+命令列的對應參數為 `--quality`、`--max-size`、`--fps`、`--frame-seconds`、`--pages`、`--split-pages`、`--dpi`、`--sheet`、`--rotate`、`--flip`、`--crop`、`--start`、`--end`、`--pdf-password`、`--name-template`；
 `--overwrite` 需明確指定才會覆蓋既有檔案，`--office` 可指定 soffice 執行檔路徑。
 
 ## 分組規則（合併型 vs 逐檔）
@@ -240,6 +254,9 @@ OTF（CFF 輪廓）無法直接變成 TTF（TrueType 輪廓），遇到時會回
 
 - 預設輸出到來源資料夾，`photo.png → photo.jpg`。
 - 輸出檔名與來源相同時（例如 `photo.png → photo.png` 重新壓縮），改名為 `photo_converted.png`。
-- 同名檔案已存在時自動編號：`photo (1).jpg`、`photo (2).jpg`；`archive.tar.gz` 會變成 `archive (1).tar.gz`。
-- PDF → 圖片、抽影格等多輸出轉換會建立新資料夾，例如 `report_pages/`、`clip_frames/`。
+- 同名檔案已存在時自動編號：`photo (1).jpg`、`photo (2).jpg`；`archive.tar.gz`／`archive.tar.zst`
+  會變成 `archive (1).tar.gz`／`archive (1).tar.zst`。
+- 檔名樣板可使用 `{name}`（來源主檔名）、`{ext}`（目標副檔名）、`{date}`（YYYYMMDD）、
+  `{time}`（HHMMSS）、`{index}`（本批工作序號，三位數）；例如 `{name}_{index}.{ext}`。
+- PDF → 圖片、PDF 分割、抽影格與解壓等多輸出轉換會建立新資料夾，例如 `report_pages/`、`report_split/`。
 - 檔名中的非法字元會被清理，但中文、日文、韓文檔名會原樣保留。
